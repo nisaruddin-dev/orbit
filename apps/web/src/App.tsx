@@ -1,14 +1,14 @@
 /**
  * Orbit — Root application component.
  *
- * Mounts the 3D Canvas with the twilight environment and the
- * four-light rig.
+ * Mounts the 3D Canvas with the twilight environment, four-light
+ * rig, and ambient dust particles.
  */
 
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 
 import { CAMERA, ENVIRONMENT } from '@/design';
-import { Floor, Fog, Lighting, Sky } from '@/scene';
+import { Dust, Floor, Fog, Lighting, Sky } from '@/scene';
 
 /**
  * Points the camera at a fixed target. Runs every frame so R3F's
@@ -48,6 +48,7 @@ export default function App() {
         <Lighting />
 
         <Floor />
+        <Dust />
       </Canvas>
     </div>
   );
