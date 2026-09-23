@@ -6,5 +6,6 @@
  * business logic, no persistence.
  */
 
+export { Floor } from './Floor';
 export { Fog } from './Fog';
 export { Sky } from './Sky';
