@@ -6,6 +6,7 @@
  * business logic, no persistence.
  */
 
+export { Core } from './Core';
 export { Dust } from './Dust';
 export { Floor } from './Floor';
 export { Fog } from './Fog';

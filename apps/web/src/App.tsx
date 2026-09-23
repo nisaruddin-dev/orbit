@@ -2,14 +2,14 @@
  * Orbit — Root application component.
  *
  * Mounts the 3D Canvas with the twilight environment, four-light
- * rig, ambient dust particles, and camera rig.
+ * rig, ambient dust particles, camera rig, and the Core.
  */
 
 import { Canvas } from '@react-three/fiber';
 
 import { CameraRig } from '@/camera';
 import { CAMERA, ENVIRONMENT } from '@/design';
-import { Dust, Floor, Fog, Lighting, Sky } from '@/scene';
+import { Core, Dust, Floor, Fog, Lighting, Sky } from '@/scene';
 
 export default function App() {
   return (
@@ -33,6 +33,7 @@ export default function App() {
         <Lighting />
 
         <Floor />
+        <Core />
         <Dust />
       </Canvas>
     </div>
