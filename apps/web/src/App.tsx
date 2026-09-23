@@ -5,12 +5,16 @@
  * added in Chunk 2 (The Void).
  */
 
+import { APP_VERSION, APP_PHASE } from '@/lib';
+
 export default function App() {
   return (
     <div className="app">
       <h1>Orbit</h1>
       <p>A personal immersive 3D to-do environment.</p>
-      <p className="status">Status: scaffolding complete. Scene coming next.</p>
+      <p className="status">
+        Version {APP_VERSION} · Phase: {APP_PHASE}
+      </p>
     </div>
   );
 }
