@@ -1,40 +1,12 @@
 /**
  * Orbit — App component styles.
  *
- * The App will eventually be a full-screen 3D canvas.
- * For now, it still renders a placeholder.
+ * The App is now a full-screen 3D canvas. All previous placeholder
+ * styles are removed.
  */
 
 .app {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
-  text-align: center;
-}
-
-.app h1 {
-  font-family: Fraunces, Georgia, serif;
-  font-size: 3rem;
-  font-weight: 300;
-  letter-spacing: -0.02em;
-  margin: 0 0 1rem 0;
-  color: var(--text-primary);
-}
-
-.app p {
-  max-width: 32rem;
-  margin: 0.5rem 0;
-  font-size: 1rem;
-  line-height: 1.6;
-  color: var(--text-secondary);
-}
-
-.app .status {
-  font-size: 0.875rem;
-  color: var(--text-muted);
-  margin-top: 2rem;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
 }

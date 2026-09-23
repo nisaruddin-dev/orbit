@@ -1,25 +1,47 @@
 /**
  * Orbit — Root application component.
  *
- * For now, this renders a placeholder. The actual 3D scene will be
- * added in Sub-step 5.3.
+ * Mounts the 3D Canvas. Sub-step 5.3 uses a placeholder cube to verify
+ * that R3F is working. The cube will be removed in Sub-step 5.4 when
+ * the sky is added.
  */
 
-import { ENVIRONMENT, ACCENT } from '@/design';
-import { APP_VERSION, APP_PHASE } from '@/lib';
+import { Canvas } from '@react-three/fiber';
+import { OrbitControls } from '@react-three/drei';
+
+import { ENVIRONMENT, CAMERA } from '@/design';
+
+/**
+ * Temporary verification cube. Remove in Sub-step 5.4.
+ */
+function PlaceholderCube() {
+  return (
+    <mesh>
+      <boxGeometry args={[1, 1, 1]} />
+      <meshStandardMaterial color="#7BD3EA" />
+    </mesh>
+  );
+}
 
 export default function App() {
   return (
-    <div className="app">
-      <h1>Orbit</h1>
-      <p>A personal immersive 3D to-do environment.</p>
-      <p className="status">
-        Version {APP_VERSION} · Phase: {APP_PHASE}
-      </p>
-      <p className="status" style={{ color: ACCENT.active, fontSize: '0.75rem' }}>
-        Tokens loaded: {Object.keys(ENVIRONMENT).length} environment colors,{' '}
-        {Object.keys(ACCENT).length} accents.
-      </p>
+    <div className="app" style={{ background: ENVIRONMENT.skyTop }}>
+      <Canvas
+        camera={{
+          position: [CAMERA.orbit.x, CAMERA.orbit.y, CAMERA.orbit.z],
+          fov: CAMERA.fov,
+        }}
+      >
+        {/* Temporary light so the cube is visible */}
+        <ambientLight intensity={0.5} />
+        <directionalLight position={[5, 8, 5]} intensity={1.2} />
+
+        {/* Placeholder cube — remove in Sub-step 5.4 */}
+        <PlaceholderCube />
+
+        {/* OrbitControls lets us spin the camera with mouse drag for verification */}
+        <OrbitControls />
+      </Canvas>
     </div>
   );
 }
