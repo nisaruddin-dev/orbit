@@ -6,8 +6,6 @@
  *
  * Every visual decision in Orbit references a token. No magic
  * numbers scattered across components.
- *
- * Populated in Chunk 1 (Design Tokens).
  */
 
-export {};
+export * from './tokens';

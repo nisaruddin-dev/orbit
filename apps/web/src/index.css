@@ -1,15 +1,36 @@
-/* Orbit — global styles */
+/**
+ * Orbit — global styles.
+ *
+ * CSS custom properties here MUST mirror the values in
+ * src/design/tokens.ts. When tokens change, update both.
+ */
 
 :root {
+  /* Environment */
   --bg-void: #0e0f16;
   --bg-sky-top: #1b1e2b;
   --bg-sky-mid: #2a2f45;
   --bg-sky-low: #1e2233;
+  --floor: #232738;
+
+  /* Accents */
+  --accent-active: #7bd3ea;
+  --accent-focus: #9b8cff;
+  --accent-done: #7fe7c4;
+  --accent-urgent: #f2a67e;
+  --accent-dormant: #5c6178;
+
+  /* Text */
   --text-primary: #e8eaf2;
   --text-secondary: #a2a8bd;
   --text-muted: #6b7088;
-  --accent-active: #7bd3ea;
 
+  /* Glass */
+  --glass: rgba(232, 234, 242, 0.06);
+  --glass-border: rgba(232, 234, 242, 0.12);
+  --glass-highlight: rgba(232, 234, 242, 0.2);
+
+  /* Typography */
   font-family:
     Inter,
     -apple-system,
@@ -32,7 +53,9 @@ html,
 body {
   margin: 0;
   padding: 0;
-  min-height: 100vh;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden; /* No scrollbars — the canvas fills the viewport */
   background: linear-gradient(
     to bottom,
     var(--bg-sky-top) 0%,
@@ -42,5 +65,6 @@ body {
 }
 
 #root {
-  min-height: 100vh;
+  width: 100%;
+  height: 100%;
 }
