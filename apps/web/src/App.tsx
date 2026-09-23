@@ -6,6 +6,7 @@ import { Canvas } from '@react-three/fiber';
 
 import { CameraRig, useCameraKeyboard } from '@/camera';
 import { CAMERA, ENVIRONMENT } from '@/design';
+import { InteractionHandler } from '@/input';
 import {
   Core,
   Dust,
@@ -19,15 +20,14 @@ import {
 } from '@/scene';
 
 const MOCK_NODES = [
-  { angle: 0, radius: 4, priority: 2 as const, title: 'Review PR feedback' },
-  { angle: Math.PI / 2, radius: 4, priority: 1 as const, title: 'Team standup' },
-  { angle: Math.PI / 4, radius: 7, priority: 1 as const, title: 'Write design doc' },
-  { angle: Math.PI, radius: 7, priority: 0 as const, title: 'Refactor auth module' },
-  { angle: (3 * Math.PI) / 4, radius: 10, priority: 0 as const, title: 'Learn Rust' },
+  { id: 'task-1', angle: 0, radius: 4, priority: 2 as const, title: 'Review PR feedback' },
+  { id: 'task-2', angle: Math.PI / 2, radius: 4, priority: 1 as const, title: 'Team standup' },
+  { id: 'task-3', angle: Math.PI / 4, radius: 7, priority: 1 as const, title: 'Write design doc' },
+  { id: 'task-4', angle: Math.PI, radius: 7, priority: 0 as const, title: 'Refactor auth module' },
+  { id: 'task-5', angle: (3 * Math.PI) / 4, radius: 10, priority: 0 as const, title: 'Learn Rust' },
 ] as const;
 
 export default function App() {
-  // Install keyboard shortcuts for camera state changes.
   useCameraKeyboard();
 
   return (
@@ -45,6 +45,7 @@ export default function App() {
         }}
       >
         <CameraRig />
+        <InteractionHandler />
 
         <Sky />
         <Fog />
@@ -54,12 +55,13 @@ export default function App() {
         <Core />
         <Rings />
 
-        {MOCK_NODES.map((node, index) => {
+        {MOCK_NODES.map((node) => {
           const x = Math.cos(node.angle) * node.radius;
           const z = Math.sin(node.angle) * node.radius;
           return (
             <TaskNode
-              key={index}
+              key={node.id}
+              id={node.id}
               priority={node.priority}
               position={[x, 0, z]}
               title={node.title}
