@@ -15,7 +15,8 @@
 
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Color, InstancedMesh, Matrix4, Vector3 } from 'three';
+import { Color, Matrix4, Vector3 } from 'three';
+import type { InstancedMesh } from 'three';
 
 import { PARTICLES } from '@/design';
 
@@ -29,12 +30,12 @@ const DRIFT_SPEED = 0.05;
 const DRIFT_AMPLITUDE = 0.6;
 
 /** Each particle's drift direction (normalized) and phase. */
-type ParticleSeed = {
+interface ParticleSeed {
   origin: Vector3;
   direction: Vector3;
   phase: number;
   speed: number;
-};
+}
 
 /**
  * Generates random seeds for all particles. Called once.
@@ -44,9 +45,9 @@ function generateSeeds(count: number): ParticleSeed[] {
 
   for (let i = 0; i < count; i++) {
     // Random point in a sphere (rejection sampling)
-    let x = 0;
-    let y = 0;
-    let z = 0;
+    let x: number;
+    let y: number;
+    let z: number;
     do {
       x = Math.random() * 2 - 1;
       y = Math.random() * 2 - 1;
@@ -84,14 +85,12 @@ export function Dust() {
   const meshRef = useRef<InstancedMesh>(null);
 
   // Generate seeds once. Never changes.
-  const seeds = useMemo(
-    () => generateSeeds(PARTICLES.ambientDust),
-    [],
-  );
+  const seeds = useMemo(() => generateSeeds(PARTICLES.ambientDust), []);
 
   // Scratch objects reused every frame (avoid GC pressure).
   const scratchMatrix = useMemo(() => new Matrix4(), []);
   const scratchPosition = useMemo(() => new Vector3(), []);
+  const dustColor = useMemo(() => new Color('#E8EAF2'), []);
 
   // Each frame, update the position of every particle.
   useFrame((state) => {
@@ -133,7 +132,7 @@ export function Dust() {
     >
       <sphereGeometry args={[0.015, 4, 4]} />
       <meshBasicMaterial
-        color={new Color('#E8EAF2')}
+        color={dustColor}
         transparent
         opacity={0.25}
         depthWrite={false}
