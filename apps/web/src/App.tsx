@@ -1,14 +1,10 @@
 /**
  * Orbit — Root application component.
- *
- * Mounts the 3D Canvas with the twilight environment, four-light
- * rig, ambient dust particles, camera rig, Core, rings, mock task
- * nodes, and post-processing.
  */
 
 import { Canvas } from '@react-three/fiber';
 
-import { CameraRig } from '@/camera';
+import { CameraRig, useCameraKeyboard } from '@/camera';
 import { CAMERA, ENVIRONMENT } from '@/design';
 import {
   Core,
@@ -22,9 +18,6 @@ import {
   TaskNode,
 } from '@/scene';
 
-/**
- * Mock task data for verification.
- */
 const MOCK_NODES = [
   { angle: 0, radius: 4, priority: 2 as const, title: 'Review PR feedback' },
   { angle: Math.PI / 2, radius: 4, priority: 1 as const, title: 'Team standup' },
@@ -34,6 +27,9 @@ const MOCK_NODES = [
 ] as const;
 
 export default function App() {
+  // Install keyboard shortcuts for camera state changes.
+  useCameraKeyboard();
+
   return (
     <div className="app" style={{ background: ENVIRONMENT.skyTop }}>
       <Canvas
@@ -48,7 +44,7 @@ export default function App() {
           toneMappingExposure: 1.1,
         }}
       >
-        <CameraRig target={[0, 2, 0]} />
+        <CameraRig />
 
         <Sky />
         <Fog />
@@ -72,9 +68,6 @@ export default function App() {
         })}
 
         <Dust />
-
-        {/* Post-processing must be the LAST child of the Canvas.
-            It processes the complete scene. */}
         <PostProcessing />
       </Canvas>
     </div>
