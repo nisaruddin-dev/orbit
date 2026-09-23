@@ -15,6 +15,7 @@
 import { useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Vector3 } from 'three';
+import type { PerspectiveCamera } from 'three';
 
 import { catmullRom, computeArcControlPoint } from '@/lib';
 import { IDLE } from '@/design';
@@ -176,7 +177,7 @@ export function CameraRig() {
     camera.lookAt(currentTarget.current);
 
     // Update FOV if it changed.
-    const perspectiveCamera = camera as THREE.PerspectiveCamera;
+    const perspectiveCamera = camera as PerspectiveCamera;
     if (Math.abs(perspectiveCamera.fov - currentFov.current) > 0.01) {
       perspectiveCamera.fov = currentFov.current;
       perspectiveCamera.updateProjectionMatrix();
