@@ -1,86 +1,81 @@
+/* eslint-disable react-hooks/immutability */
 /**
  * @module scene/Sky
  *
- * Vertical gradient sky, rendered as a large inverted sphere with
- * a custom shader material.
+ * Twilight sky gradient. Uses a generated gradient texture applied
+ * as the scene background. Simpler and more reliable than a shader
+ * sphere, with no pole artifacts.
  *
- * The gradient is defined in environment tokens:
- *   skyTop   → upper horizon
- *   skyMid   → the middle band
- *   skyLow   → lower horizon
+ * The gradient is defined by three environment tokens:
+ *   skyTop   → upper color
+ *   skyMid   → middle color (at midPoint)
+ *   skyLow   → lower color
  *
- * The gradient uses the sphere's *local* Y position (not normalized
- * world position) to avoid pole artifacts near the top and bottom
- * of the sphere.
+ * ESLint disable note:
+ * The `react-hooks/immutability` rule assumes all hook values are
+ * immutable. Three.js's scene object is deliberately mutable —
+ * setting `scene.background` is the only way to change it. This
+ * file is the one place where that mutation is legitimate.
  */
 
-import { useMemo } from 'react';
-import { BackSide, Color, ShaderMaterial } from 'three';
+import { useEffect, useMemo } from 'react';
+import { CanvasTexture, LinearFilter, SRGBColorSpace } from 'three';
+import { useThree } from '@react-three/fiber';
 
 import { ENVIRONMENT } from '@/design';
 
-const SPHERE_RADIUS = 500;
+const TEXTURE_HEIGHT = 512;
 
-const VERTEX_SHADER = /* glsl */ `
-  varying vec3 vLocalPosition;
+/**
+ * Generates a small gradient texture from the environment tokens.
+ * The texture is 1×512 pixels, stretched across the background.
+ * Vertical only — no horizontal variation.
+ */
+function createSkyTexture(): CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1;
+  canvas.height = TEXTURE_HEIGHT;
 
-  void main() {
-    vLocalPosition = position;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('Failed to get 2D context for sky texture');
   }
-`;
 
-const FRAGMENT_SHADER = /* glsl */ `
-  uniform vec3 topColor;
-  uniform vec3 midColor;
-  uniform vec3 lowColor;
-  uniform float midPoint;
-  uniform float exponent;
-  uniform float radius;
+  const gradient = ctx.createLinearGradient(0, 0, 0, TEXTURE_HEIGHT);
+  gradient.addColorStop(0.0, ENVIRONMENT.skyTop);
+  gradient.addColorStop(0.5, ENVIRONMENT.skyMid);
+  gradient.addColorStop(1.0, ENVIRONMENT.skyLow);
 
-  varying vec3 vLocalPosition;
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 1, TEXTURE_HEIGHT);
 
-  void main() {
-    // Local Y ranges from -radius (bottom) to +radius (top).
-    // Remap to [0, 1].
-    float t = (vLocalPosition.y / radius + 1.0) * 0.5;
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  texture.minFilter = LinearFilter;
+  texture.magFilter = LinearFilter;
+  texture.needsUpdate = true;
 
-    // Three-stop gradient: low → mid → top
-    vec3 color;
-    if (t < midPoint) {
-      float local = t / midPoint;
-      color = mix(lowColor, midColor, pow(local, exponent));
-    } else {
-      float local = (t - midPoint) / (1.0 - midPoint);
-      color = mix(midColor, topColor, pow(local, exponent));
-    }
+  return texture;
+}
 
-    gl_FragColor = vec4(color, 1.0);
-  }
-`;
-
+/**
+ * Sets the R3F scene background to our gradient texture.
+ * Renders nothing itself — it manipulates the scene.
+ */
 export function Sky() {
-  const material = useMemo(() => {
-    return new ShaderMaterial({
-      vertexShader: VERTEX_SHADER,
-      fragmentShader: FRAGMENT_SHADER,
-      uniforms: {
-        topColor: { value: new Color(ENVIRONMENT.skyTop) },
-        midColor: { value: new Color(ENVIRONMENT.skyMid) },
-        lowColor: { value: new Color(ENVIRONMENT.skyLow) },
-        midPoint: { value: 0.5 },
-        exponent: { value: 1.2 },
-        radius: { value: SPHERE_RADIUS },
-      },
-      side: BackSide,
-      depthWrite: false,
-      fog: false,
-    });
-  }, []);
+  const scene = useThree((state) => state.scene);
 
-  return (
-    <mesh material={material}>
-      <sphereGeometry args={[SPHERE_RADIUS, 64, 32]} />
-    </mesh>
-  );
+  const texture = useMemo(() => createSkyTexture(), []);
+
+  useEffect(() => {
+    const previousBackground = scene.background;
+    scene.background = texture;
+
+    return () => {
+      scene.background = previousBackground;
+      texture.dispose();
+    };
+  }, [scene, texture]);
+
+  return null;
 }
