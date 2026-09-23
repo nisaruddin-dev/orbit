@@ -10,6 +10,7 @@ import { useCallback } from 'react';
 import { useInteractionStore } from '@/state/interaction';
 
 import type { InteractionIntent } from './intents';
+import { useDrag } from './useDrag';
 import { useIntents } from './useIntent';
 
 /**
@@ -21,7 +22,10 @@ export function InteractionHandler() {
   const hoverNode = useInteractionStore((s) => s.hoverNode);
   const unhoverNode = useInteractionStore((s) => s.unhoverNode);
   const beginDrag = useInteractionStore((s) => s.beginDrag);
+  const updateDrag = useInteractionStore((s) => s.updateDrag);
   const endDrag = useInteractionStore((s) => s.endDrag);
+
+  useDrag();
 
   const handler = useCallback(
     (intent: InteractionIntent) => {
@@ -38,8 +42,11 @@ export function InteractionHandler() {
         case 'UNHOVER_NODE':
           unhoverNode();
           break;
-        case 'BEGIN_DRAG':
+          case 'BEGIN_DRAG':
           beginDrag(intent.nodeId);
+          break;
+        case 'UPDATE_DRAG':
+          updateDrag(intent.worldPosition);
           break;
         case 'END_DRAG':
           endDrag();
@@ -48,7 +55,15 @@ export function InteractionHandler() {
           break;
       }
     },
-    [selectNode, deselectNode, hoverNode, unhoverNode, beginDrag, endDrag],
+    [
+      selectNode,
+      deselectNode,
+      hoverNode,
+      unhoverNode,
+      beginDrag,
+      updateDrag,
+      endDrag,
+    ],
   );
 
   useIntents(handler);

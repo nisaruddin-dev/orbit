@@ -46,6 +46,9 @@ export function TaskNode({ id, priority, position, title }: TaskNodeProps) {
 
   const isSelected = useInteractionStore((s) => s.selectedNodeId === id);
   const isHovered = useInteractionStore((s) => s.hoveredNodeId === id);
+  const isDragged = useInteractionStore((s) => s.draggedNodeId === id);
+  const dragPosition = useInteractionStore((s) => s.dragPosition);
+  const beginDrag = useInteractionStore((s) => s.beginDrag);
 
   const coreColor = useMemo(
     () => new Color(PRIORITY_COLORS[priority]),
@@ -88,16 +91,32 @@ export function TaskNode({ id, priority, position, title }: TaskNodeProps) {
   useFrame((_state, delta) => {
     const ring = ringRef.current;
     if (ring) {
-      ring.rotation.z += 0.1 * delta;
+      // Rotate faster when dragged, faster still when selected.
+      const speed = isDragged ? 0.8 : isSelected ? 0.4 : 0.1;
+      ring.rotation.z += speed * delta;
     }
 
-    const targetGlow = isSelected ? 1.0 : isHovered ? 0.3 : 0.0;
+    // Glow priority: dragged > selected > hovered > idle.
+    const targetGlow = isDragged
+      ? 1.5
+      : isSelected
+        ? 1.0
+        : isHovered
+          ? 0.3
+          : 0.0;
     const currentGlow = coreMaterial.emissiveIntensity;
     const delta2 = targetGlow - currentGlow;
     const step = Math.sign(delta2) * Math.min(Math.abs(delta2), 4 * delta);
     coreMaterial.emissiveIntensity = currentGlow + step;
 
-    const targetOpacity = isSelected ? 0.6 : isHovered ? 0.3 : 0.15;
+    // Shell opacity priority: dragged > selected > hovered > idle.
+    const targetOpacity = isDragged
+      ? 0.8
+      : isSelected
+        ? 0.6
+        : isHovered
+          ? 0.3
+          : 0.15;
     shellMaterial.opacity += (targetOpacity - shellMaterial.opacity) * 0.15;
   });
 
@@ -115,7 +134,13 @@ export function TaskNode({ id, priority, position, title }: TaskNodeProps) {
 
   const handlePointerDown = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
+
+    // Select first, then begin drag.
     dispatchIntent({ type: 'SELECT_NODE', nodeId: id });
+
+    // Set dragged node in store and dispatch intent.
+    beginDrag(id);
+    dispatchIntent({ type: 'BEGIN_DRAG', nodeId: id });
   };
 
   // Stop click events from propagating to the floor, which would
@@ -123,15 +148,20 @@ export function TaskNode({ id, priority, position, title }: TaskNodeProps) {
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
   };
+  // The rendered position is either the node's base position or
+  // the live drag position if this node is being dragged.
+  const renderedPosition: [number, number, number] =
+    isDragged && dragPosition ? dragPosition : position;
 
   return (
-    <group position={position}>
+    <group position={renderedPosition}>
       <mesh
         material={coreMaterial}
         onPointerOver={handlePointerOver}
         onPointerOut={handlePointerOut}
         onPointerDown={handlePointerDown}
         onClick={handleClick}
+        scale={isDragged ? 1.2 : isHovered ? 1.05 : 1.0}
       >
         <sphereGeometry args={[SPATIAL.nodeRadius, 32, 16]} />
       </mesh>

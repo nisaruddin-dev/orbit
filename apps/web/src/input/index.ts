@@ -6,6 +6,7 @@
  */
 
 export { InteractionHandler } from './InteractionHandler';
+export { useDrag } from './useDrag';
 export { useKeyboardNavigation } from './useKeyboardNavigation';
 export { dispatchIntent, useIntents } from './useIntent';
 export type { InteractionIntent, IntentListener } from './intents';

@@ -19,6 +19,12 @@ interface InteractionStore {
   /** Currently dragged node ID, or null. */
   draggedNodeId: string | null;
 
+  /** Live drag position for the dragged node, in world coordinates. */
+  dragPosition: [number, number, number] | null;
+
+  /** Offset from node origin to where the drag began. */
+  dragOffset: [number, number, number] | null;
+
   /** Ordered list of node IDs, used for keyboard navigation. */
   nodeOrder: string[];
 
@@ -30,6 +36,8 @@ interface InteractionStore {
   hoverNode: (nodeId: string) => void;
   unhoverNode: () => void;
   beginDrag: (nodeId: string) => void;
+  setDragOffset: (offset: [number, number, number]) => void;
+  updateDrag: (position: [number, number, number]) => void;
   endDrag: () => void;
 
   /** Register the full set of nodes. Called once when nodes mount. */
@@ -50,6 +58,8 @@ export const useInteractionStore = create<InteractionStore>((set, get) => ({
   selectedNodeId: null,
   hoveredNodeId: null,
   draggedNodeId: null,
+  dragPosition: null,
+  dragOffset: null,
   nodeOrder: [],
   nodePositions: {},
 
@@ -66,12 +76,17 @@ export const useInteractionStore = create<InteractionStore>((set, get) => ({
     set({ hoveredNodeId: null });
   },
   beginDrag: (nodeId) => {
-    set({ draggedNodeId: nodeId });
+    set({ draggedNodeId: nodeId, dragPosition: null, dragOffset: null });
+  },
+  setDragOffset: (offset) => {
+    set({ dragOffset: offset });
+  },
+  updateDrag: (position) => {
+    set({ dragPosition: position });
   },
   endDrag: () => {
-    set({ draggedNodeId: null });
+    set({ draggedNodeId: null, dragPosition: null, dragOffset: null });
   },
-
   setNodeList: (ids, positions) => {
     set({ nodeOrder: ids, nodePositions: positions });
   },
