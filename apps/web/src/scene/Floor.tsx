@@ -12,18 +12,12 @@
  * disappears into fog rather than showing the floor's edge.
  */
 
-import { useMemo } from 'react';
-import { Color, DoubleSide } from 'three';
-
 import { ENVIRONMENT, SPATIAL } from '@/design';
 
 /**
  * The floor plane. Large enough that its edges are lost in fog.
  */
 export function Floor() {
-  // Memoize the material color so it's not re-created on every render.
-  const floorColor = useMemo(() => new Color(ENVIRONMENT.floor), []);
-
   return (
     <mesh
       rotation={[-Math.PI / 2, 0, 0]}
@@ -33,10 +27,10 @@ export function Floor() {
       {/* Large circle — round edges feel more natural than a square */}
       <circleGeometry args={[200, 64]} />
       <meshStandardMaterial
-        color={floorColor}
-        roughness={0.4}
-        metalness={0.1}
-        side={DoubleSide}
+        color={ENVIRONMENT.floor}
+        roughness={0.5}
+        metalness={0.05}
+        side={2}
       />
     </mesh>
   );

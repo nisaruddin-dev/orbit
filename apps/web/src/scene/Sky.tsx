@@ -19,7 +19,12 @@
  */
 
 import { useEffect, useMemo } from 'react';
-import { CanvasTexture, LinearFilter, SRGBColorSpace } from 'three';
+import {
+  CanvasTexture,
+  ClampToEdgeWrapping,
+  LinearFilter,
+  SRGBColorSpace,
+} from 'three';
 import { useThree } from '@react-three/fiber';
 
 import { ENVIRONMENT } from '@/design';
@@ -53,6 +58,8 @@ function createSkyTexture(): CanvasTexture {
   texture.colorSpace = SRGBColorSpace;
   texture.minFilter = LinearFilter;
   texture.magFilter = LinearFilter;
+  texture.wrapS = ClampToEdgeWrapping;
+  texture.wrapT = ClampToEdgeWrapping;
   texture.needsUpdate = true;
 
   return texture;
