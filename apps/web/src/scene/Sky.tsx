@@ -9,9 +9,9 @@
  *   skyMid   → the middle band
  *   skyLow   → lower horizon
  *
- * The sky is rendered from inside the sphere, so all geometry is
- * behind the camera. It never receives shadows or lights — it IS
- * the light source for the rest of the scene (indirectly).
+ * The gradient uses the sphere's *local* Y position (not normalized
+ * world position) to avoid pole artifacts near the top and bottom
+ * of the sphere.
  */
 
 import { useMemo } from 'react';
@@ -19,12 +19,13 @@ import { BackSide, Color, ShaderMaterial } from 'three';
 
 import { ENVIRONMENT } from '@/design';
 
+const SPHERE_RADIUS = 500;
+
 const VERTEX_SHADER = /* glsl */ `
-  varying vec3 vWorldPosition;
+  varying vec3 vLocalPosition;
 
   void main() {
-    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-    vWorldPosition = worldPosition.xyz;
+    vLocalPosition = position;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
 `;
@@ -35,15 +36,14 @@ const FRAGMENT_SHADER = /* glsl */ `
   uniform vec3 lowColor;
   uniform float midPoint;
   uniform float exponent;
+  uniform float radius;
 
-  varying vec3 vWorldPosition;
+  varying vec3 vLocalPosition;
 
   void main() {
-    // Normalize the world Y coordinate of this fragment to [0, 1]
-    float h = normalize(vWorldPosition).y;
-
-    // Remap to [0, 1] so we can blend between three colors
-    float t = (h + 1.0) * 0.5;
+    // Local Y ranges from -radius (bottom) to +radius (top).
+    // Remap to [0, 1].
+    float t = (vLocalPosition.y / radius + 1.0) * 0.5;
 
     // Three-stop gradient: low → mid → top
     vec3 color;
@@ -69,7 +69,8 @@ export function Sky() {
         midColor: { value: new Color(ENVIRONMENT.skyMid) },
         lowColor: { value: new Color(ENVIRONMENT.skyLow) },
         midPoint: { value: 0.5 },
-        exponent: { value: 1.0 },
+        exponent: { value: 1.2 },
+        radius: { value: SPHERE_RADIUS },
       },
       side: BackSide,
       depthWrite: false,
@@ -79,7 +80,7 @@ export function Sky() {
 
   return (
     <mesh material={material}>
-      <sphereGeometry args={[500, 32, 16]} />
+      <sphereGeometry args={[SPHERE_RADIUS, 64, 32]} />
     </mesh>
   );
 }
