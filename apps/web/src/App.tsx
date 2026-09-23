@@ -2,14 +2,24 @@
  * Orbit — Root application component.
  *
  * Mounts the 3D Canvas with the twilight environment, four-light
- * rig, ambient dust particles, camera rig, Core, and rings.
+ * rig, ambient dust particles, camera rig, Core, rings, and one
+ * mock task node (for verification).
  */
 
 import { Canvas } from '@react-three/fiber';
 
 import { CameraRig } from '@/camera';
 import { CAMERA, ENVIRONMENT } from '@/design';
-import { Core, Dust, Floor, Fog, Lighting, Rings, Sky } from '@/scene';
+import {
+  Core,
+  Dust,
+  Floor,
+  Fog,
+  Lighting,
+  Rings,
+  Sky,
+  TaskNode,
+} from '@/scene';
 
 export default function App() {
   return (
@@ -35,6 +45,11 @@ export default function App() {
         <Floor />
         <Core />
         <Rings />
+
+        {/* Mock task node for verification. Positioned on the
+            Today ring at angle 0 (positive X axis). */}
+        <TaskNode priority={1} position={[4, 0, 0]} />
+
         <Dust />
       </Canvas>
     </div>
