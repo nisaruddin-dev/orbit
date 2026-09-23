@@ -18,7 +18,7 @@ import { useFrame } from '@react-three/fiber';
 import { Color, MeshStandardMaterial, MeshBasicMaterial } from 'three';
 import type { Group, Mesh } from 'three';
 
-import { ACCENT, IDLE, SPATIAL } from '@/design';
+import { ACCENT, SPATIAL } from '@/design';
 
 /**
  * Priority levels for a task, from the PRD.
