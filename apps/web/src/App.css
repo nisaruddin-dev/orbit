@@ -1,12 +1,13 @@
 /**
  * Orbit — App component styles.
  *
- * The App is now a full-screen 3D canvas. All previous placeholder
- * styles are removed.
+ * The App is a full-screen 3D canvas. It fills the #root flex
+ * container.
  */
 
 .app {
-  width: 100vw;
-  height: 100vh;
+  flex: 1;
+  width: 100%;
+  position: relative;
   overflow: hidden;
 }

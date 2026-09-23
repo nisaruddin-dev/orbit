@@ -5,7 +5,7 @@
 import { Canvas } from '@react-three/fiber';
 
 import { CameraRig, useCameraKeyboard } from '@/camera';
-import { CAMERA, ENVIRONMENT } from '@/design';
+import { CAMERA } from '@/design';
 import { InteractionHandler } from '@/input';
 import {
   Core,
@@ -31,7 +31,7 @@ export default function App() {
   useCameraKeyboard();
 
   return (
-    <div className="app" style={{ background: ENVIRONMENT.skyTop }}>
+    <div className="app">
       <Canvas
         camera={{
           position: [CAMERA.orbit.x, CAMERA.orbit.y, CAMERA.orbit.z],
