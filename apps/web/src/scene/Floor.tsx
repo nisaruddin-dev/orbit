@@ -1,15 +1,12 @@
 /**
  * @module scene/Floor
  *
- * The reflective floor. Sits at y = floorY (from spatial tokens),
- * extends outward beyond the visible scene, and receives a soft
- * blurred reflection.
+ * The reflective floor. Sits at y = floorY, extends outward beyond
+ * the visible scene, and receives a soft blurred reflection.
  *
- * Not a mirror. The reflection is diffuse — like polished stone,
- * not glass.
- *
- * The floor is also the "deselect" surface: clicking it
- * dispatches DESELECT_NODE.
+ * The floor also handles deselect: clicking empty floor space clears
+ * the current selection. Node clicks stopPropagation so they don't
+ * reach this handler.
  */
 
 import type { ThreeEvent } from '@react-three/fiber';
@@ -18,10 +15,13 @@ import { ENVIRONMENT, SPATIAL } from '@/design';
 import { dispatchIntent } from '@/input';
 
 /**
- * The floor plane. Large enough that its edges are lost in fog.
+ * The floor plane.
  */
 export function Floor() {
-  const handleClick = (_e: ThreeEvent<MouseEvent>) => {
+  const handleClick = (e: ThreeEvent<MouseEvent>) => {
+    // Node clicks stopPropagation, so if we receive a click here,
+    // it means the user clicked empty space.
+    e.stopPropagation();
     dispatchIntent({ type: 'DESELECT_NODE' });
   };
 
@@ -32,7 +32,6 @@ export function Floor() {
       receiveShadow
       onClick={handleClick}
     >
-      {/* Large circle — round edges feel more natural than a square */}
       <circleGeometry args={[200, 64]} />
       <meshStandardMaterial
         color={ENVIRONMENT.floor}
