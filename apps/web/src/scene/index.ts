@@ -11,4 +11,6 @@ export { Dust } from './Dust';
 export { Floor } from './Floor';
 export { Fog } from './Fog';
 export { Lighting } from './Lighting';
+export { OrbitRing } from './OrbitRing';
+export { Rings } from './Rings';
 export { Sky } from './Sky';
