@@ -2,8 +2,10 @@
  * Orbit — Root application component.
  *
  * Mounts the 3D Canvas with the twilight environment, four-light
- * rig, ambient dust particles, camera rig, Core, rings, and one
- * mock task node (for verification).
+ * rig, ambient dust particles, camera rig, Core, rings, and
+ * mock task nodes.
+ *
+ * Mock nodes will be replaced by real data in a later chunk.
  */
 
 import { Canvas } from '@react-three/fiber';
@@ -21,6 +23,27 @@ import {
   TaskNode,
 } from '@/scene';
 
+/**
+ * Mock task data for verification.
+ *
+ * Angles are in radians, measured from +X axis (east).
+ * Positions compute as:
+ *   x = cos(angle) * radius
+ *   z = sin(angle) * radius
+ */
+const MOCK_NODES = [
+  // Today ring (radius 4)
+  { angle: 0, radius: 4, priority: 2 as const, title: 'Review PR feedback' },
+  { angle: Math.PI / 2, radius: 4, priority: 1 as const, title: 'Team standup' },
+
+  // Week ring (radius 7)
+  { angle: Math.PI / 4, radius: 7, priority: 1 as const, title: 'Write design doc' },
+  { angle: Math.PI, radius: 7, priority: 0 as const, title: 'Refactor auth module' },
+
+  // Someday ring (radius 10)
+  { angle: (3 * Math.PI) / 4, radius: 10, priority: 0 as const, title: 'Learn Rust' },
+] as const;
+
 export default function App() {
   return (
     <div className="app" style={{ background: ENVIRONMENT.skyTop }}>
@@ -32,7 +55,7 @@ export default function App() {
           far: 1000,
         }}
         gl={{
-          toneMapping: 4, // ACESFilmicToneMapping
+          toneMapping: 4,
           toneMappingExposure: 1.1,
         }}
       >
@@ -46,9 +69,18 @@ export default function App() {
         <Core />
         <Rings />
 
-        {/* Mock task node for verification. Positioned on the
-            Today ring at angle 0 (positive X axis). */}
-        <TaskNode priority={1} position={[4, 0, 0]} />
+        {MOCK_NODES.map((node, index) => {
+          const x = Math.cos(node.angle) * node.radius;
+          const z = Math.sin(node.angle) * node.radius;
+          return (
+            <TaskNode
+              key={index}
+              priority={node.priority}
+              position={[x, 0, z]}
+              title={node.title}
+            />
+          );
+        })}
 
         <Dust />
       </Canvas>
