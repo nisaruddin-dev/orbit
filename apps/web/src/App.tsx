@@ -2,29 +2,14 @@
  * Orbit — Root application component.
  *
  * Mounts the 3D Canvas with the twilight environment, four-light
- * rig, and ambient dust particles.
+ * rig, ambient dust particles, and camera rig.
  */
 
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Canvas } from '@react-three/fiber';
 
+import { CameraRig } from '@/camera';
 import { CAMERA, ENVIRONMENT } from '@/design';
 import { Dust, Floor, Fog, Lighting, Sky } from '@/scene';
-
-/**
- * Points the camera at a fixed target. Runs every frame so R3F's
- * internal camera updates don't override our intent.
- *
- * Replaced by the full camera state machine in Sub-step 5.9.
- */
-function FixedLookAt({ target }: { target: [number, number, number] }) {
-  const camera = useThree((state) => state.camera);
-
-  useFrame(() => {
-    camera.lookAt(target[0], target[1], target[2]);
-  });
-
-  return null;
-}
 
 export default function App() {
   return (
@@ -41,7 +26,7 @@ export default function App() {
           toneMappingExposure: 1.1,
         }}
       >
-        <FixedLookAt target={[0, 2, 0]} />
+        <CameraRig target={[0, 2, 0]} />
 
         <Sky />
         <Fog />

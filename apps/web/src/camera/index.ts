@@ -7,7 +7,8 @@
  * Transitions between states use Catmull-Rom splines with
  * cinematic easing.
  *
- * Populated in Chunk 6 (Camera as a Character).
+ * Currently implements only the idle camera (Orbit state with
+ * micro-drift). The full state machine is a Chunk 6 task.
  */
 
-export {};
+export { CameraRig } from './CameraRig';
