@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/immutability */
 /**
  * @module scene/TaskNode
  *
