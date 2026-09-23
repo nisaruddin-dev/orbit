@@ -7,7 +7,7 @@
 import { Canvas } from '@react-three/fiber';
 
 import { CAMERA, ENVIRONMENT } from '@/design';
-import { Sky } from '@/scene';
+import { Fog, Sky } from '@/scene';
 
 export default function App() {
   return (
@@ -19,6 +19,7 @@ export default function App() {
         }}
       >
         <Sky />
+        <Fog />
       </Canvas>
     </div>
   );
