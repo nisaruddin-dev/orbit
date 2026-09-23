@@ -1,5 +1,8 @@
 # Orbit
 
+[![Frontend CI](https://github.com/nisaruddin-dev/orbit/actions/workflows/frontend-ci.yml/badge.svg)](https://github.com/nisaruddin-dev/orbit/actions/workflows/frontend-ci.yml)
+[![Backend CI](https://github.com/nisaruddin-dev/orbit/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/nisaruddin-dev/orbit/actions/workflows/backend-ci.yml)
+
 > A personal immersive 3D to-do environment.
 
 **Orbit** turns tasks into physical objects in a persistent spatial world. You enter a quiet twilight space, place your tasks in orbit around a central Core, and physically release them when complete.
