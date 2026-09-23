@@ -16,7 +16,7 @@ import { useFrame } from '@react-three/fiber';
 import { Color } from 'three';
 import type { Mesh, MeshStandardMaterial } from 'three';
 
-import { ACCENT, IDLE, SPATIAL } from '@/design';
+import { IDLE, SPATIAL } from '@/design';
 
 /**
  * The Core sphere. Pulses its emissive intensity on a 4-second
