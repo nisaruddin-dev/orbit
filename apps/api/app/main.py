@@ -4,6 +4,8 @@ Orbit API — FastAPI application entry point.
 This is the skeleton. Real routes will be added in later chunks.
 """
 
+from typing import Any
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -12,6 +14,7 @@ app = FastAPI(
     description="Backend for the Orbit personal 3D to-do environment",
     version="0.0.0",
 )
+
 
 # Development-only CORS — allow the frontend (Vite) to talk to us.
 # This will be tightened before production.
@@ -28,7 +31,7 @@ app.add_middleware(
 
 
 @app.get("/api/v1/health")
-async def health() -> dict:
+async def health() -> dict[str, Any]:
     """Basic health check endpoint."""
     return {
         "status": "ok",
