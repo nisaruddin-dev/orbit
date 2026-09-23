@@ -1,17 +1,14 @@
 /**
  * Orbit — Root application component.
  *
- * Mounts the 3D Canvas with the twilight environment.
- *
- * Temporary: two placeholder lights will be replaced by the
- * four-light rig in Sub-step 5.7.
+ * Mounts the 3D Canvas with the twilight environment and the
+ * four-light rig.
  */
 
-import { useFrame, useThree } from '@react-three/fiber';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 
 import { CAMERA, ENVIRONMENT } from '@/design';
-import { Fog, Floor, Sky } from '@/scene';
+import { Floor, Fog, Lighting, Sky } from '@/scene';
 
 /**
  * Points the camera at a fixed target. Runs every frame so R3F's
@@ -39,20 +36,16 @@ export default function App() {
           near: 0.1,
           far: 1000,
         }}
+        gl={{
+          toneMapping: 4, // ACESFilmicToneMapping
+          toneMappingExposure: 1.1,
+        }}
       >
         <FixedLookAt target={[0, 2, 0]} />
 
         <Sky />
         <Fog />
-
-        {/* Temporary lights — replaced by the four-light rig in 5.7 */}
-        <ambientLight intensity={0.4} />
-        <directionalLight position={[5, 8, 5]} intensity={1.5} />
-        <directionalLight
-          position={[-5, 4, -5]}
-          intensity={0.5}
-          color="#8AA0FF"
-        />
+        <Lighting />
 
         <Floor />
       </Canvas>

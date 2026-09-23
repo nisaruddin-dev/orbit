@@ -8,4 +8,5 @@
 
 export { Floor } from './Floor';
 export { Fog } from './Fog';
+export { Lighting } from './Lighting';
 export { Sky } from './Sky';
