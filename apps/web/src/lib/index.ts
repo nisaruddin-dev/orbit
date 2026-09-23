@@ -8,4 +8,5 @@
  * any specific framework. Pure TypeScript only.
  */
 
+export * from './spline';
 export * from './version';

@@ -4,22 +4,19 @@
  * Camera control. Reads the current camera state from the store
  * and interpolates the camera toward the target pose every frame.
  *
- * Adds subtle micro-drift so the camera is never truly still.
+ * Transitions follow a Catmull-Rom spline path. The spline arcs
+ * outward from a computed control point, so the camera swings
+ * through space instead of sliding in a straight line.
  *
- * Interpolation uses a fixed-duration eased approach:
- *   - when the state changes, capture the current pose as the start
- *   - capture the target pose from CAMERA_POSES
- *   - over TRANSITION_DURATION seconds, interpolate start → target
- *   - after the transition, apply micro-drift on top of the target
- *
- * When no transition is in progress, the camera stays at the
- * target pose plus micro-drift.
+ * Adds subtle micro-drift on top of the interpolated position so
+ * the camera is never truly still.
  */
 
 import { useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Vector3 } from 'three';
 
+import { catmullRom, computeArcControlPoint } from '@/lib';
 import { IDLE } from '@/design';
 import { useCameraStore } from '@/state/camera';
 
@@ -35,23 +32,22 @@ const PHASE_Y = 1.7;
 const PHASE_Z = 3.1;
 
 /**
+ * How far to push the arc control point outward from the straight
+ * line between start and end. 0 = straight line. 0.15 = moderate arc.
+ */
+const ARC_OFFSET_FACTOR = 0.15;
+
+/**
  * Cubic ease-in-out matching the `cinematic` easing curve.
- * Approximation of cubic-bezier(0.65, 0, 0.35, 1).
  */
 function cinematicEase(t: number): number {
-  // Simple cubic ease-in-out. Visually similar to the CSS curve.
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-}
-
-interface CameraRigProps {
-  /** Reserved for future use. Currently unused. */
-  target?: [number, number, number];
 }
 
 /**
  * The camera rig. Runs every frame.
  */
-export function CameraRig({ target: _target }: CameraRigProps = {}) {
+export function CameraRig() {
   const state = useCameraStore((s) => s.state);
 
   // Current interpolated values.
@@ -65,6 +61,12 @@ export function CameraRig({ target: _target }: CameraRigProps = {}) {
   const transitionFromTarget = useRef(new Vector3());
   const transitionFromFov = useRef(45);
   const transitionDuration = useRef(1.2);
+
+  // Spline control points for the current transition.
+  // These shape the arc the camera swings through.
+  const splineControlA = useRef(new Vector3());
+  const splineControlB = useRef(new Vector3());
+
   const lastStateRef = useRef<CameraState>(state);
 
   // Initialize the camera on first render.
@@ -81,12 +83,36 @@ export function CameraRig({ target: _target }: CameraRigProps = {}) {
 
     // Detect state change.
     if (lastStateRef.current !== state) {
-      // Start a new transition.
+      // Capture the current pose as the transition start.
       transitionFromPosition.current.copy(currentPosition.current);
       transitionFromTarget.current.copy(currentTarget.current);
       transitionFromFov.current = currentFov.current;
       transitionStartTime.current = t;
       transitionDuration.current = TRANSITION_DURATION[state];
+
+      // Compute spline control points for the arc.
+      const startPos = transitionFromPosition.current;
+      const endPos = new Vector3(...CAMERA_POSES[state].position);
+
+      // The two "outer" control points shape the curve. Both are
+      // positioned along a perpendicular from the midpoint of the
+      // straight path, one on each side of the curve's inflection.
+      // A single control point at the midpoint already creates a
+      // nice arc; two let us shape the entry and exit slightly.
+      const controlA = computeArcControlPoint(
+        startPos,
+        endPos,
+        ARC_OFFSET_FACTOR,
+      );
+      const controlB = computeArcControlPoint(
+        startPos,
+        endPos,
+        ARC_OFFSET_FACTOR,
+      );
+
+      splineControlA.current.copy(controlA);
+      splineControlB.current.copy(controlB);
+
       lastStateRef.current = state;
     }
 
@@ -105,15 +131,9 @@ export function CameraRig({ target: _target }: CameraRigProps = {}) {
 
     const eased = cinematicEase(progress);
 
-    // Interpolate position, target, fov.
-    const targetPositionVec = new Vector3(...targetPose.position);
+    // Interpolate the target point and FOV linearly (they don't
+    // swing; only the camera position does).
     const targetTargetVec = new Vector3(...targetPose.target);
-
-    currentPosition.current.lerpVectors(
-      transitionFromPosition.current,
-      targetPositionVec,
-      eased,
-    );
     currentTarget.current.lerpVectors(
       transitionFromTarget.current,
       targetTargetVec,
@@ -122,6 +142,24 @@ export function CameraRig({ target: _target }: CameraRigProps = {}) {
     currentFov.current =
       transitionFromFov.current +
       (targetPose.fov - transitionFromFov.current) * eased;
+
+    // Sample the camera position along a Catmull-Rom spline.
+    // Control points: (start, start, controlA, end)
+    // The duplicated start is standard — it makes the curve
+    // tangent at the start.
+    if (transitionStartTime.current !== null) {
+      const endPosition = new Vector3(...targetPose.position);
+      const sampled = catmullRom(
+        transitionFromPosition.current,
+        transitionFromPosition.current,
+        splineControlA.current,
+        endPosition,
+        eased,
+      );
+      currentPosition.current.copy(sampled);
+    } else {
+      currentPosition.current.set(...targetPose.position);
+    }
 
     // Apply micro-drift on top of the interpolated position.
     const omega = 2 * Math.PI * IDLE.cameraDriftFrequency;
@@ -137,13 +175,11 @@ export function CameraRig({ target: _target }: CameraRigProps = {}) {
     );
     camera.lookAt(currentTarget.current);
 
-    // Update FOV only if it changed. R3F handles the projection
-    // matrix update when `updateProjectionMatrix` is called.
-    if ('fov' in camera && typeof camera.fov === 'number') {
-      if (Math.abs(camera.fov - currentFov.current) > 0.01) {
-        camera.fov = currentFov.current;
-        camera.updateProjectionMatrix();
-      }
+    // Update FOV if it changed.
+    const perspectiveCamera = camera as THREE.PerspectiveCamera;
+    if (Math.abs(perspectiveCamera.fov - currentFov.current) > 0.01) {
+      perspectiveCamera.fov = currentFov.current;
+      perspectiveCamera.updateProjectionMatrix();
     }
   });
 
