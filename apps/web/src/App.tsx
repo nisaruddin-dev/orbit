@@ -2,11 +2,12 @@
  * Orbit — Root application component.
  */
 
+import { useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 
 import { CameraRig, useCameraKeyboard } from '@/camera';
 import { CAMERA } from '@/design';
-import { InteractionHandler } from '@/input';
+import { InteractionHandler, useKeyboardNavigation } from '@/input';
 import {
   Core,
   Dust,
@@ -18,6 +19,7 @@ import {
   Sky,
   TaskNode,
 } from '@/scene';
+import { useInteractionStore } from '@/state/interaction';
 
 const MOCK_NODES = [
   { id: 'task-1', angle: 0, radius: 4, priority: 2 as const, title: 'Review PR feedback' },
@@ -29,6 +31,24 @@ const MOCK_NODES = [
 
 export default function App() {
   useCameraKeyboard();
+  useKeyboardNavigation();
+
+  const setNodeList = useInteractionStore((s) => s.setNodeList);
+
+  // Register the node list once. Positions are derived from the
+  // same math the render loop uses.
+  useEffect(() => {
+    const ids = MOCK_NODES.map((n) => n.id);
+    const positions: Record<string, [number, number, number]> = {};
+    for (const node of MOCK_NODES) {
+      positions[node.id] = [
+        Math.cos(node.angle) * node.radius,
+        0,
+        Math.sin(node.angle) * node.radius,
+      ];
+    }
+    setNodeList(ids, positions);
+  }, [setNodeList]);
 
   return (
     <div className="app">
