@@ -24,5 +24,7 @@ interface CameraStore {
 
 export const useCameraStore = create<CameraStore>((set) => ({
   state: 'orbit',
-  setState: (state) => set({ state }),
+  setState: (state) => {
+    set({ state });
+  },
 }));

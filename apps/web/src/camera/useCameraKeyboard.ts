@@ -43,7 +43,7 @@ export function useCameraKeyboard(): void {
       if (isTextInputFocused()) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
 
-      let next: CameraState | null = null;
+      let next: CameraState;
 
       switch (e.key) {
         case 'o':
