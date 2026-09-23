@@ -12,6 +12,7 @@ export { Floor } from './Floor';
 export { Fog } from './Fog';
 export { Lighting } from './Lighting';
 export { OrbitRing } from './OrbitRing';
+export { PostProcessing } from './PostProcessing';
 export { Rings } from './Rings';
 export { Sky } from './Sky';
 export { TaskNode } from './TaskNode';
