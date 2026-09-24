@@ -31,7 +31,7 @@ export const ACCENT = {
   focus: '#9B8CFF',
   done: '#7FE7C4',
   urgent: '#F2A67E',
-  dormant: '#5C6178',
+dormant: '#6E7390',
 } as const;
 
 /**

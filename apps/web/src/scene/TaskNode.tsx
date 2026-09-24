@@ -132,7 +132,7 @@ export function TaskNode({ id, priority, position, title }: TaskNodeProps) {
         ? 1.0
         : isHovered
           ? 0.3
-          : 0.0;
+          : 0.15;
     const currentGlow = coreMaterial.emissiveIntensity;
     const delta2 = targetGlow - currentGlow;
     const step = Math.sign(delta2) * Math.min(Math.abs(delta2), 4 * delta);
