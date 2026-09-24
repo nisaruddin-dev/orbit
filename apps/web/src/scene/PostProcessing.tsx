@@ -30,6 +30,7 @@ import { BlendFunction } from 'postprocessing';
  * Must be placed inside the Canvas, as the last child, so it
  * processes the complete scene.
  */
+
 export function PostProcessing() {
   return (
 <EffectComposer>
