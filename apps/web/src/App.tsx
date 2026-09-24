@@ -4,6 +4,7 @@
 
 import { useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
+import { ChoreographyTicker } from '@/choreography';
 
 import { CameraRig, useCameraKeyboard } from '@/camera';
 import { CAMERA } from '@/design';
@@ -181,6 +182,7 @@ export default function App() {
 
         <Dust />
         <PostProcessing />
+	<ChoreographyTicker />
       </Canvas>
     </div>
   );

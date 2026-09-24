@@ -1,14 +1,27 @@
 /**
  * @module choreography
  *
- * Declarative animation timelines. Each choreography is a named
- * sequence of keyframed tracks that can be played, cancelled, or
- * interrupted.
- *
- * Choreographies are pure data — they don't own task state. They
- * express how state transitions *look and sound*, not what they are.
- *
- * Populated in Chunk 7 (Input Abstraction) and Chunk 10 (Completion).
+ * Public exports for the choreography system.
  */
 
-export {};
+export type {
+  Choreography,
+  ChoreographyHandle,
+  ChoreographyTrack,
+  EasingName,
+  Keyframe,
+  TrackValueListener,
+} from './types';
+
+export { EASINGS } from './easings';
+
+export {
+  play,
+  cancel,
+  cancelAll,
+  isPlaying,
+  subscribe,
+  tick,
+} from './engine';
+
+export { ChoreographyTicker } from './ChoreographyTicker';
