@@ -85,7 +85,19 @@ export function CameraRig() {
     // Detect state change.
     if (lastStateRef.current !== state) {
       // Capture the current pose as the transition start.
-      transitionFromPosition.current.copy(currentPosition.current);
+      // Include the micro-drift so the transition begins from
+      // where the camera actually is, not from the drift-free base.
+      const omega = 2 * Math.PI * IDLE.cameraDriftFrequency;
+      const amp = IDLE.cameraDriftAmplitude;
+      const dx = Math.sin(t * omega * FREQ_X + PHASE_X) * amp;
+      const dy = Math.sin(t * omega * FREQ_Y + PHASE_Y) * amp;
+      const dz = Math.sin(t * omega * FREQ_Z + PHASE_Z) * amp;
+
+      transitionFromPosition.current.set(
+        currentPosition.current.x + dx,
+        currentPosition.current.y + dy,
+        currentPosition.current.z + dz,
+      );
       transitionFromTarget.current.copy(currentTarget.current);
       transitionFromFov.current = currentFov.current;
       transitionStartTime.current = t;
