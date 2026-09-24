@@ -1,158 +1,219 @@
 /**
  * @module state/interaction
  *
- * Interaction state. Tracks which node is currently selected,
- * hovered, and being dragged, plus the ordered list of node IDs
- * for keyboard navigation.
+ * Interaction store. Tracks selection, hover, drag, and the
+ * eight-state completion zone.
  *
- * This is separate from the camera state store because they
- * represent different concerns.
+ * The zone state machine (UI/UX §40) lives here so any system —
+ * drag, choreography, audio (later) — can read it.
+ *
+ * Eight states:
+ *   hidden         — no drag in progress
+ *   appearing      — drag just started, zone fading in
+ *   available      — zone visible, no node nearby
+ *   approaching    — node within proximity radius
+ *   near           — node close, zone glowing strongly
+ *   valid-release  — node within release threshold
+ *   completing     — node released inside zone (Task 9)
+ *   recovery       — node released outside, zone fading out
+ *
+ * Transitions are driven by distance between the dragged node
+ * and the zone's world position. Distances are in world units.
+ *
+ * TECH DEBT (fix in 7.5):
+ * Node settled position is still owned by TaskNode.tsx. This
+ * violates System Architecture §116 (One Owner per state). The
+ * refactor moves it here as the first task of 7.5.
  */
 
 import { create } from 'zustand';
 
-interface InteractionStore {
-  /** Currently selected node ID, or null. */
-  selectedNodeId: string | null;
-  /** Currently hovered node ID, or null. */
-  hoveredNodeId: string | null;
-  /** Currently dragged node ID, or null. */
-  draggedNodeId: string | null;
+/**
+ * The eight zone states. See module doc for meanings.
+ */
+export type ZoneState =
+  | 'hidden'
+  | 'appearing'
+  | 'available'
+  | 'approaching'
+  | 'near'
+  | 'valid-release'
+  | 'completing'
+  | 'recovery';
 
-  /** Live drag position for the dragged node, in world coordinates. */
+/** Proximity band thresholds, in world units. */
+export const ZONE_BANDS = {
+  /** Distance at which the zone leaves `available` and enters `approaching`. */
+  approaching: 3.5,
+  /** Distance at which the zone leaves `approaching` and enters `near`. */
+  near: 2.0,
+  /** Distance at which the zone leaves `near` and enters `valid-release`. */
+  validRelease: 1.0,
+} as const;
+
+/**
+ * The completion zone's world position. Must match
+ * SPATIAL.completionZonePosition in tokens.ts.
+ *
+ * Hardcoded here to avoid a circular import between the store
+ * and the design tokens.
+ */
+const ZONE_POSITION: readonly [number, number, number] = [0, -1.5, 3];
+
+interface InteractionStore {
+  // Selection
+  selectedNodeId: string | null;
+  hoveredNodeId: string | null;
+
+  // Dragging
+  draggedNodeId: string | null;
   dragPosition: [number, number, number] | null;
 
-  /** Offset from node origin to where the drag began. */
-  dragOffset: [number, number, number] | null;
-
-  /** Ordered list of node IDs, used for keyboard navigation. */
+  // Keyboard navigation
   nodeOrder: string[];
-
-  /** World positions of each node, keyed by ID. Used for spatial navigation. */
   nodePositions: Record<string, [number, number, number]>;
 
-  selectNode: (nodeId: string) => void;
+  // Completion zone
+  zoneState: ZoneState;
+  zoneProximity: number; // 0.0 (far) to 1.0 (at zone center)
+
+  // Actions — selection
+  selectNode: (id: string | null) => void;
   deselectNode: () => void;
-  hoverNode: (nodeId: string) => void;
+  hoverNode: (id: string | null) => void;
   unhoverNode: () => void;
-  beginDrag: (nodeId: string) => void;
-  setDragOffset: (offset: [number, number, number]) => void;
-  updateDrag: (position: [number, number, number]) => void;
+
+  // Actions — dragging
+  beginDrag: (id: string) => void;
+  updateDrag: (worldPosition: [number, number, number]) => void;
   endDrag: () => void;
 
-  /** Register the full set of nodes. Called once when nodes mount. */
+  // Actions — keyboard navigation
   setNodeList: (
     ids: string[],
     positions: Record<string, [number, number, number]>,
   ) => void;
-
-  /** Move selection to the next node in the ordered list. */
   selectNext: () => void;
-  /** Move selection to the previous node in the ordered list. */
   selectPrevious: () => void;
-  /** Move selection to the nearest node in a given direction. */
-  selectInDirection: (direction: 'up' | 'down' | 'left' | 'right') => void;
+  selectInDirection: (
+    direction: 'up' | 'down' | 'left' | 'right',
+  ) => void;
+
+  // Actions — zone
+  setZoneState: (state: ZoneState) => void;
+  setZoneProximity: (value: number) => void;
+}
+
+/**
+ * Compute the zone state from a distance.
+ */
+function stateFromDistance(distance: number): ZoneState {
+  if (distance < ZONE_BANDS.validRelease) return 'valid-release';
+  if (distance < ZONE_BANDS.near) return 'near';
+  if (distance < ZONE_BANDS.approaching) return 'approaching';
+  return 'available';
 }
 
 export const useInteractionStore = create<InteractionStore>((set, get) => ({
+  // Initial state
   selectedNodeId: null,
   hoveredNodeId: null,
   draggedNodeId: null,
   dragPosition: null,
-  dragOffset: null,
   nodeOrder: [],
   nodePositions: {},
+  zoneState: 'hidden',
+  zoneProximity: 0,
 
-  selectNode: (nodeId) => {
-    set({ selectedNodeId: nodeId });
+  // Selection
+  selectNode: (id) => {
+    set({ selectedNodeId: id });
   },
   deselectNode: () => {
     set({ selectedNodeId: null });
   },
-  hoverNode: (nodeId) => {
-    set({ hoveredNodeId: nodeId });
+  hoverNode: (id) => {
+    set({ hoveredNodeId: id });
   },
   unhoverNode: () => {
     set({ hoveredNodeId: null });
   },
-  beginDrag: (nodeId) => {
-    set({ draggedNodeId: nodeId, dragPosition: null, dragOffset: null });
+
+  // Dragging
+  beginDrag: (id) => {
+    set({
+      draggedNodeId: id,
+      selectedNodeId: id,
+      zoneState: 'appearing',
+      zoneProximity: 0,
+    });
   },
-  setDragOffset: (offset) => {
-    set({ dragOffset: offset });
-  },
-  updateDrag: (position) => {
-    set({ dragPosition: position });
+  updateDrag: (worldPosition) => {
+    const state = get();
+
+    const dx = worldPosition[0] - ZONE_POSITION[0];
+    const dy = worldPosition[1] - ZONE_POSITION[1];
+    const dz = worldPosition[2] - ZONE_POSITION[2];
+    const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+    // Map distance to proximity: 1.0 at zone, 0.0 at outer band.
+    const proximity = Math.max(0, 1 - distance / ZONE_BANDS.approaching);
+
+    const nextState = stateFromDistance(distance);
+
+    // Only update state if it changed, to avoid needless re-renders.
+    if (
+      state.zoneState !== nextState ||
+      Math.abs(state.zoneProximity - proximity) > 0.02
+    ) {
+      set({
+        dragPosition: worldPosition,
+        zoneState: nextState,
+        zoneProximity: proximity,
+      });
+    } else {
+      set({ dragPosition: worldPosition });
+    }
   },
   endDrag: () => {
-    set({ draggedNodeId: null, dragPosition: null, dragOffset: null });
+    set({
+      draggedNodeId: null,
+      dragPosition: null,
+      zoneState: 'recovery',
+      zoneProximity: 0,
+    });
   },
+
+  // Keyboard navigation
   setNodeList: (ids, positions) => {
     set({ nodeOrder: ids, nodePositions: positions });
   },
-
   selectNext: () => {
     const { nodeOrder, selectedNodeId } = get();
     if (nodeOrder.length === 0) return;
-
-    if (selectedNodeId === null) {
-      // Nothing selected → select the first.
-      set({ selectedNodeId: nodeOrder[0] ?? null });
-      return;
-    }
-
-    const currentIndex = nodeOrder.indexOf(selectedNodeId);
+    const currentIndex = selectedNodeId
+      ? nodeOrder.indexOf(selectedNodeId)
+      : -1;
     const nextIndex = (currentIndex + 1) % nodeOrder.length;
-    set({ selectedNodeId: nodeOrder[nextIndex] ?? null });
+    const nextId = nodeOrder[nextIndex];
+    if (nextId) set({ selectedNodeId: nextId });
   },
-
   selectPrevious: () => {
     const { nodeOrder, selectedNodeId } = get();
     if (nodeOrder.length === 0) return;
-
-    if (selectedNodeId === null) {
-      // Nothing selected → select the last.
-      set({ selectedNodeId: nodeOrder[nodeOrder.length - 1] ?? null });
-      return;
-    }
-
-    const currentIndex = nodeOrder.indexOf(selectedNodeId);
+    const currentIndex = selectedNodeId
+      ? nodeOrder.indexOf(selectedNodeId)
+      : 0;
     const prevIndex = (currentIndex - 1 + nodeOrder.length) % nodeOrder.length;
-    set({ selectedNodeId: nodeOrder[prevIndex] ?? null });
+    const prevId = nodeOrder[prevIndex];
+    if (prevId) set({ selectedNodeId: prevId });
   },
-
   selectInDirection: (direction) => {
     const { nodeOrder, nodePositions, selectedNodeId } = get();
-    if (nodeOrder.length === 0) return;
-
-    // If nothing is selected, pick the first.
-    if (selectedNodeId === null) {
-      set({ selectedNodeId: nodeOrder[0] ?? null });
-      return;
-    }
-
+    if (!selectedNodeId || nodeOrder.length === 0) return;
     const currentPos = nodePositions[selectedNodeId];
     if (!currentPos) return;
 
-    // Direction vectors in screen-space terms:
-    // "up" means the node appears above the current one in the camera view.
-    // Since our camera looks down at the scene from above and slightly forward,
-    // "up" on screen ≈ negative Z in world space (farther from camera).
-    // "down" ≈ positive Z. "left" ≈ negative X. "right" ≈ positive X.
-    const directionVectors: Record<
-      'up' | 'down' | 'left' | 'right',
-      [number, number, number]
-    > = {
-      up: [0, 0, -1],
-      down: [0, 0, 1],
-      left: [-1, 0, 0],
-      right: [1, 0, 0],
-    };
-
-    const [dx, dy, dz] = directionVectors[direction];
-
-    // Find the node that is most "in the direction" of dx,dy,dz
-    // from the current position.
     let bestId: string | null = null;
     let bestScore = -Infinity;
 
@@ -161,30 +222,34 @@ export const useInteractionStore = create<InteractionStore>((set, get) => ({
       const pos = nodePositions[id];
       if (!pos) continue;
 
-      const vx = pos[0] - currentPos[0];
-      const vy = pos[1] - currentPos[1];
-      const vz = pos[2] - currentPos[2];
+      const dx = pos[0] - currentPos[0];
+      const dz = pos[2] - currentPos[2];
+      const distance = Math.sqrt(dx * dx + dz * dz);
+      if (distance === 0) continue;
 
-      // Dot product with direction vector.
-      const dot = vx * dx + vy * dy + vz * dz;
+      let alignment = 0;
+      if (direction === 'up') alignment = -dz / distance;
+      if (direction === 'down') alignment = dz / distance;
+      if (direction === 'left') alignment = -dx / distance;
+      if (direction === 'right') alignment = dx / distance;
 
-      // Skip nodes that are behind us or perpendicular.
-      if (dot <= 0.1) continue;
+      if (alignment <= 0) continue;
 
-      // Score: prefer nodes that are mostly in the direction
-      // and not too far off-axis.
-      const length = Math.sqrt(vx * vx + vy * vy + vz * vz);
-      const alignment = dot / length;
-      const score = alignment * 2 - length * 0.1;
-
+      const score = alignment - distance * 0.01;
       if (score > bestScore) {
         bestScore = score;
         bestId = id;
       }
     }
 
-    if (bestId !== null) {
-      set({ selectedNodeId: bestId });
-    }
+    if (bestId) set({ selectedNodeId: bestId });
+  },
+
+  // Zone
+  setZoneState: (state) => {
+    set({ zoneState: state });
+  },
+  setZoneProximity: (value) => {
+    set({ zoneProximity: value });
   },
 }));

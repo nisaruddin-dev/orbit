@@ -4,17 +4,19 @@
  * The completion zone — where a task is released. Not a button.
  * An interaction destination.
  *
- * At rest, the zone is hidden. When Task 8 wires it to the drag
- * system, it will appear on drag start, pulse as a node approaches,
- * intensify at valid release range, and fade on recovery.
+ * Reads the eight-state zone machine from the interaction store
+ * and plays the appropriate choreography:
  *
- * This task (7.4b) renders the zone at its world position and
- * plays the pulse loop, so the visual can be tuned. Interactivity
- * arrives in 7.4c (Task 8).
+ *   hidden        → not rendered
+ *   appearing     → zone.appear plays once, then transitions to available
+ *   available     → zone.pulse loops at low intensity
+ *   approaching   → zone.pulse loops, intensity rises with proximity
+ *   near          → zone.pulse loops, intensity high
+ *   valid-release → zone.pulse loops, intensity at maximum
+ *   completing    → (Task 9 handles the dissolve)
+ *   recovery      → zone.recover plays once, then transitions to hidden
  *
- * Eight-state machine (UI/UX §40), driven by Task 8:
- *   hidden, appearing, available, approaching, near,
- *   valid-release, completing, recovery
+ * Emits no intents. Only reads state.
  */
 
 import { useEffect, useMemo, useRef } from 'react';
@@ -23,11 +25,16 @@ import { Color } from 'three';
 import type { Mesh, MeshStandardMaterial } from 'three';
 
 import { ACCENT, SPATIAL } from '@/design';
-import { play, subscribe, isPlaying } from '@/choreography';
+import {
+  play,
+  subscribe,
+  isPlaying,
+  cancel,
+} from '@/choreography';
+import { useInteractionStore } from '@/state/interaction';
 
 /**
- * The visible representation of the zone. A torus lying flat on
- * the ground plane.
+ * A flat torus representing the zone.
  */
 export function CompletionZone() {
   const meshRef = useRef<Mesh>(null);
@@ -35,14 +42,17 @@ export function CompletionZone() {
   // The zone's color: mint.
   const zoneColor = useMemo(() => new Color(ACCENT.done), []);
 
-  // Local values driven by the choreography engine. These start
-  // at their resting values.
-  const opacityRef = useRef(0.6);
+  // Read the zone state from the store.
+  const zoneState = useInteractionStore((s) => s.zoneState);
+  const zoneProximity = useInteractionStore((s) => s.zoneProximity);
+  const setZoneState = useInteractionStore((s) => s.setZoneState);
+
+  // Values driven by the choreography engine.
+  const opacityRef = useRef(0.0);
   const emissiveRef = useRef(0.6);
   const scaleRef = useRef(1.0);
 
-  // Subscribe to the choreography engine. When any zone.* track
-  // reports a value, update our local refs.
+  // Subscribe to the choreography engine.
   useEffect(() => {
     const unsubscribe = subscribe((target, property, value) => {
       if (target !== 'zone') return;
@@ -50,39 +60,79 @@ export function CompletionZone() {
       if (property === 'emissive') emissiveRef.current = value;
       if (property === 'scale') scaleRef.current = value;
     });
-
     return () => {
       unsubscribe();
     };
   }, []);
 
-  // Play `zone.pulse` on a loop so the visual is alive while we
-  // tune it. In Task 8, the drag system will control which
-  // choreography plays.
+  // Play choreographies based on zone state.
   useEffect(() => {
-    void play('zone.pulse');
-    const interval = window.setInterval(() => {
-      if (!isPlaying('zone.pulse')) {
-        void play('zone.pulse');
-      }
-    }, 100);
+    if (zoneState === 'hidden') {
+      cancel('zone.appear');
+      cancel('zone.pulse');
+      cancel('zone.recover');
+      opacityRef.current = 0;
+      return;
+    }
 
-    return () => {
-      window.clearInterval(interval);
-    };
-  }, []);
+    if (zoneState === 'appearing') {
+      cancel('zone.pulse');
+      cancel('zone.recover');
+      void play('zone.appear').promise.then(() => {
+        // After appear completes, if we are still in 'appearing',
+        // transition to 'available'. Otherwise, the state has
+        // already been changed by proximity.
+        const current = useInteractionStore.getState().zoneState;
+        if (current === 'appearing') {
+          setZoneState('available');
+        }
+      });
+      return;
+    }
 
-  // Apply the choreography values to the mesh and material every
-  // frame. The engine's tick updates the refs; this reads them
-  // and writes them to the GPU.
+    if (zoneState === 'recovery') {
+      cancel('zone.appear');
+      cancel('zone.pulse');
+      void play('zone.recover').promise.then(() => {
+        const current = useInteractionStore.getState().zoneState;
+        if (current === 'recovery') {
+          setZoneState('hidden');
+        }
+      });
+      return;
+    }
+
+    // States: available, approaching, near, valid-release
+    cancel('zone.appear');
+    cancel('zone.recover');
+    if (!isPlaying('zone.pulse')) {
+      void play('zone.pulse');
+    }
+  }, [zoneState, setZoneState]);
+
+  // While pulsing, modulate the emissive based on proximity.
   useFrame(() => {
     const mesh = meshRef.current;
     if (!mesh) return;
 
     const material = mesh.material as MeshStandardMaterial;
+
+    // Base intensity from the choreography (pulse), plus
+    // proximity boost. Clamp to a reasonable maximum.
+    const proximityBoost = zoneProximity * 0.6;
+    const finalEmissive = Math.min(
+      1.4,
+      emissiveRef.current + proximityBoost,
+    );
+
     material.opacity = opacityRef.current;
-    material.emissiveIntensity = emissiveRef.current;
+    material.emissiveIntensity = finalEmissive;
     mesh.scale.setScalar(scaleRef.current);
+
+    // Hide the mesh entirely when fully transparent. This avoids
+    // drawing an invisible object and also avoids the zone casting
+    // an invisible glow.
+    mesh.visible = opacityRef.current > 0.01;
   });
 
   return (
@@ -94,6 +144,7 @@ export function CompletionZone() {
         SPATIAL.completionZonePosition[2],
       ]}
       rotation={[-Math.PI / 2, 0, 0]}
+      visible={false}
     >
       <torusGeometry args={[SPATIAL.completionZoneRadius, 0.08, 16, 64]} />
       <meshStandardMaterial
@@ -101,7 +152,7 @@ export function CompletionZone() {
         emissive={zoneColor}
         emissiveIntensity={0.6}
         transparent
-        opacity={0.6}
+        opacity={0.0}
         roughness={0.4}
         metalness={0.0}
       />

@@ -12,6 +12,12 @@
  *
  * The hook uses R3F's `useThree` to get the camera and raycaster,
  * then projects the pointer onto the y = 0 plane.
+ *
+ * On every drag update, the interaction store computes proximity
+ * to the completion zone and updates the zone state machine. This
+ * hook emits a PROXIMITY_CHANGED intent after each update, so the
+ * future audio system (Chunk 16) can subscribe. No listener
+ * responds yet — the intent is a stub that proves the contract.
  */
 
 import { useEffect } from 'react';
@@ -56,6 +62,20 @@ export function useDrag(): void {
           type: 'UPDATE_DRAG',
           worldPosition: [intersection.x, 0, intersection.z],
         });
+
+        // The store has now updated zoneProximity. Read it and
+        // emit a PROXIMITY_CHANGED intent for the future audio
+        // system. The zone's own visual updates happen in the
+        // store subscription inside CompletionZone.tsx.
+        const state = useInteractionStore.getState();
+        const nodeId = state.draggedNodeId;
+        if (nodeId) {
+          dispatchIntent({
+            type: 'PROXIMITY_CHANGED',
+            nodeId,
+            scalar: state.zoneProximity,
+          });
+        }
       }
     };
 
