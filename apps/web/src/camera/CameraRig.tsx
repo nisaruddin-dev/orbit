@@ -145,15 +145,16 @@ export function CameraRig() {
       (targetPose.fov - transitionFromFov.current) * eased;
 
     // Sample the camera position along a Catmull-Rom spline.
-    // Control points: (start, start, controlA, end)
-    // The duplicated start is standard — it makes the curve
-    // tangent at the start.
+    // Control points: (start, controlA, end, end)
+    // The curve passes through controlA and end, and terminates
+    // exactly at endPosition at t=1.0. The duplicated end is
+    // standard — it makes the curve tangent at the destination.
     if (transitionStartTime.current !== null) {
       const endPosition = new Vector3(...targetPose.position);
       const sampled = catmullRom(
         transitionFromPosition.current,
-        transitionFromPosition.current,
         splineControlA.current,
+        endPosition,
         endPosition,
         eased,
       );
