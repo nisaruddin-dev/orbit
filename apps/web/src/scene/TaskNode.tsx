@@ -11,6 +11,16 @@
  * store. When a drag ends, the node remembers its final position
  * locally so it stays where it was dropped.
  */
+/**
+ * TECH DEBT (fix in 7.5):
+ * This component currently owns its own `settledPosition` state.
+ * This violates System Architecture §116 (One Owner per state)
+ * and §163 (Interaction Controller owns user input).
+ *
+ * The refactor: move `settledPosition` to the interaction store.
+ * TaskNode will read the position from the store instead of local
+ * state. This happens as the first task of Sub-step 7.5.
+ */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
