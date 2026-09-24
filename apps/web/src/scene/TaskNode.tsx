@@ -7,11 +7,12 @@
  * Four layers: Core (sphere), Shell (wireframe), Ring (torus),
  * Label (SDF text).
  *
- * Responds to hover and selection state from the interaction store.
- * Emits SELECT_NODE, HOVER_NODE, and UNHOVER_NODE intents.
+ * Responds to hover, selection, and drag state from the interaction
+ * store. When a drag ends, the node remembers its final position
+ * locally so it stays where it was dropped.
  */
 
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Color, MeshStandardMaterial, MeshBasicMaterial } from 'three';
 import { Text } from '@react-three/drei';
@@ -49,6 +50,36 @@ export function TaskNode({ id, priority, position, title }: TaskNodeProps) {
   const isDragged = useInteractionStore((s) => s.draggedNodeId === id);
   const dragPosition = useInteractionStore((s) => s.dragPosition);
   const beginDrag = useInteractionStore((s) => s.beginDrag);
+
+  // Local settled position. Updated when a drag ends.
+  const [settledPosition, setSettledPosition] = useState<
+    [number, number, number]
+  >(position);
+
+  // Track the last drag position observed while dragging.
+  const lastDragPositionRef = useRef<[number, number, number] | null>(null);
+
+  // Track whether the node was being dragged on the previous render.
+  const wasDraggedRef = useRef(false);
+
+  // Capture the live drag position while dragging.
+  useEffect(() => {
+    if (isDragged && dragPosition) {
+      lastDragPositionRef.current = dragPosition;
+    }
+  }, [isDragged, dragPosition]);
+
+  // On drag end, commit the last drag position.
+  useEffect(() => {
+    if (wasDraggedRef.current && !isDragged) {
+      const lastPos = lastDragPositionRef.current;
+      if (lastPos) {
+        setSettledPosition(lastPos);
+      }
+      lastDragPositionRef.current = null;
+    }
+    wasDraggedRef.current = isDragged;
+  }, [isDragged]);
 
   const coreColor = useMemo(
     () => new Color(PRIORITY_COLORS[priority]),
@@ -91,12 +122,10 @@ export function TaskNode({ id, priority, position, title }: TaskNodeProps) {
   useFrame((_state, delta) => {
     const ring = ringRef.current;
     if (ring) {
-      // Rotate faster when dragged, faster still when selected.
       const speed = isDragged ? 0.8 : isSelected ? 0.4 : 0.1;
       ring.rotation.z += speed * delta;
     }
 
-    // Glow priority: dragged > selected > hovered > idle.
     const targetGlow = isDragged
       ? 1.5
       : isSelected
@@ -109,7 +138,6 @@ export function TaskNode({ id, priority, position, title }: TaskNodeProps) {
     const step = Math.sign(delta2) * Math.min(Math.abs(delta2), 4 * delta);
     coreMaterial.emissiveIntensity = currentGlow + step;
 
-    // Shell opacity priority: dragged > selected > hovered > idle.
     const targetOpacity = isDragged
       ? 0.8
       : isSelected
@@ -134,24 +162,19 @@ export function TaskNode({ id, priority, position, title }: TaskNodeProps) {
 
   const handlePointerDown = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
-
-    // Select first, then begin drag.
     dispatchIntent({ type: 'SELECT_NODE', nodeId: id });
-
-    // Set dragged node in store and dispatch intent.
     beginDrag(id);
     dispatchIntent({ type: 'BEGIN_DRAG', nodeId: id });
   };
 
-  // Stop click events from propagating to the floor, which would
-  // otherwise immediately deselect the node we just selected.
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
   };
-  // The rendered position is either the node's base position or
-  // the live drag position if this node is being dragged.
+
+  // Rendered position: live drag position while dragging, otherwise
+  // the settled position.
   const renderedPosition: [number, number, number] =
-    isDragged && dragPosition ? dragPosition : position;
+    isDragged && dragPosition ? dragPosition : settledPosition;
 
   return (
     <group position={renderedPosition}>
