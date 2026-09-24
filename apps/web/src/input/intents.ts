@@ -26,6 +26,7 @@ export type InteractionIntent =
   | { type: 'BEGIN_DRAG'; nodeId: string }
   | { type: 'UPDATE_DRAG'; worldPosition: [number, number, number] }
   | { type: 'END_DRAG' }
+  | { type: 'PROXIMITY_CHANGED'; nodeId: string; scalar: number }
   | { type: 'COMPLETE_NODE'; nodeId: string }
   | { type: 'ARCHIVE_NODE'; nodeId: string }
   | { type: 'OPEN_EDITOR'; nodeId: string }
