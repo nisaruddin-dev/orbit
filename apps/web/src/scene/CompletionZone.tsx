@@ -5,18 +5,13 @@
  * An interaction destination.
  *
  * Reads the eight-state zone machine from the interaction store
- * and plays the appropriate choreography:
+ * and plays the appropriate choreography.
  *
- *   hidden        → not rendered
- *   appearing     → zone.appear plays once, then transitions to available
- *   available     → zone.pulse loops at low intensity
- *   approaching   → zone.pulse loops, intensity rises with proximity
- *   near          → zone.pulse loops, intensity high
- *   valid-release → zone.pulse loops, intensity at maximum
- *   completing    → (Task 9 handles the dissolve)
- *   recovery      → zone.recover plays once, then transitions to hidden
+ * In Task 9 (this delivery), a new state `completing` is added:
+ * when a node is released inside the zone, the zone plays a
+ * one-shot flash and then waits for 7.6 to run the dissolve.
  *
- * Emits no intents. Only reads state.
+ * The dissolve itself is NOT in this component. 7.6 will own it.
  */
 
 import { useEffect, useMemo, useRef } from 'react';
@@ -39,10 +34,8 @@ import { useInteractionStore } from '@/state/interaction';
 export function CompletionZone() {
   const meshRef = useRef<Mesh>(null);
 
-  // The zone's color: mint.
   const zoneColor = useMemo(() => new Color(ACCENT.done), []);
 
-  // Read the zone state from the store.
   const zoneState = useInteractionStore((s) => s.zoneState);
   const zoneProximity = useInteractionStore((s) => s.zoneProximity);
   const setZoneState = useInteractionStore((s) => s.setZoneState);
@@ -52,7 +45,9 @@ export function CompletionZone() {
   const emissiveRef = useRef(0.6);
   const scaleRef = useRef(1.0);
 
-  // Subscribe to the choreography engine.
+  // Flash intensity during `completing`. Ramps up and stays high.
+  const flashRef = useRef(0);
+
   useEffect(() => {
     const unsubscribe = subscribe((target, property, value) => {
       if (target !== 'zone') return;
@@ -65,13 +60,13 @@ export function CompletionZone() {
     };
   }, []);
 
-  // Play choreographies based on zone state.
   useEffect(() => {
     if (zoneState === 'hidden') {
       cancel('zone.appear');
       cancel('zone.pulse');
       cancel('zone.recover');
       opacityRef.current = 0;
+      flashRef.current = 0;
       return;
     }
 
@@ -79,14 +74,22 @@ export function CompletionZone() {
       cancel('zone.pulse');
       cancel('zone.recover');
       void play('zone.appear').promise.then(() => {
-        // After appear completes, if we are still in 'appearing',
-        // transition to 'available'. Otherwise, the state has
-        // already been changed by proximity.
         const current = useInteractionStore.getState().zoneState;
         if (current === 'appearing') {
           setZoneState('available');
         }
       });
+      return;
+    }
+
+    if (zoneState === 'completing') {
+      // Hold at full intensity. 7.6 will run the dissolve.
+      cancel('zone.appear');
+      cancel('zone.pulse');
+      cancel('zone.recover');
+      opacityRef.current = 0.8;
+      emissiveRef.current = 1.4;
+      scaleRef.current = 1.05;
       return;
     }
 
@@ -110,15 +113,12 @@ export function CompletionZone() {
     }
   }, [zoneState, setZoneState]);
 
-  // While pulsing, modulate the emissive based on proximity.
   useFrame(() => {
     const mesh = meshRef.current;
     if (!mesh) return;
 
     const material = mesh.material as MeshStandardMaterial;
 
-    // Base intensity from the choreography (pulse), plus
-    // proximity boost. Clamp to a reasonable maximum.
     const proximityBoost = zoneProximity * 0.6;
     const finalEmissive = Math.min(
       1.4,
@@ -129,9 +129,6 @@ export function CompletionZone() {
     material.emissiveIntensity = finalEmissive;
     mesh.scale.setScalar(scaleRef.current);
 
-    // Hide the mesh entirely when fully transparent. This avoids
-    // drawing an invisible object and also avoids the zone casting
-    // an invisible glow.
     mesh.visible = opacityRef.current > 0.01;
   });
 

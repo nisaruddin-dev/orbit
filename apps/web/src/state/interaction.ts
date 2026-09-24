@@ -14,11 +14,11 @@
  *   approaching    — node within proximity radius
  *   near           — node close, zone glowing strongly
  *   valid-release  — node within release threshold
- *   completing     — node released inside zone (Task 9)
+ *   completing     — node released inside zone (7.6 handles dissolve)
  *   recovery       — node released outside, zone fading out
  *
- * Transitions are driven by distance between the dragged node
- * and the zone's world position. Distances are in world units.
+ * Release decisions are made in InteractionHandler on END_DRAG.
+ * The decision is stored in `releaseDecision` for TaskNode to read.
  *
  * TECH DEBT (fix in 7.5):
  * Node settled position is still owned by TaskNode.tsx. This
@@ -40,6 +40,16 @@ export type ZoneState =
   | 'valid-release'
   | 'completing'
   | 'recovery';
+
+/**
+ * The release decision made when a drag ends. TaskNode reads this
+ * to know whether to commit, spring back, or enter completing.
+ */
+export type ReleaseDecision =
+  | 'commit'
+  | 'spring-back'
+  | 'enter-completing'
+  | null;
 
 /** Proximity band thresholds, in world units. */
 export const ZONE_BANDS = {
@@ -69,6 +79,10 @@ interface InteractionStore {
   draggedNodeId: string | null;
   dragPosition: [number, number, number] | null;
 
+  // The release decision. Set by InteractionHandler on END_DRAG,
+  // read by TaskNode, cleared when the node has reacted to it.
+  releaseDecision: ReleaseDecision;
+
   // Keyboard navigation
   nodeOrder: string[];
   nodePositions: Record<string, [number, number, number]>;
@@ -86,7 +100,16 @@ interface InteractionStore {
   // Actions — dragging
   beginDrag: (id: string) => void;
   updateDrag: (worldPosition: [number, number, number]) => void;
-  endDrag: () => void;
+  /**
+   * End a drag. The decision is passed in by the caller
+   * (InteractionHandler), which has already read the zone state.
+   */
+  endDrag: (decision: Exclude<ReleaseDecision, null>) => void;
+
+  /**
+   * Clear the release decision once TaskNode has reacted to it.
+   */
+  clearReleaseDecision: () => void;
 
   // Actions — keyboard navigation
   setNodeList: (
@@ -114,12 +137,25 @@ function stateFromDistance(distance: number): ZoneState {
   return 'available';
 }
 
+/**
+ * Compute the distance from a world position to the zone.
+ */
+export function distanceToZone(
+  worldPosition: readonly [number, number, number],
+): number {
+  const dx = worldPosition[0] - ZONE_POSITION[0];
+  const dy = worldPosition[1] - ZONE_POSITION[1];
+  const dz = worldPosition[2] - ZONE_POSITION[2];
+  return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
 export const useInteractionStore = create<InteractionStore>((set, get) => ({
   // Initial state
   selectedNodeId: null,
   hoveredNodeId: null,
   draggedNodeId: null,
   dragPosition: null,
+  releaseDecision: null,
   nodeOrder: [],
   nodePositions: {},
   zoneState: 'hidden',
@@ -144,24 +180,17 @@ export const useInteractionStore = create<InteractionStore>((set, get) => ({
     set({
       draggedNodeId: id,
       selectedNodeId: id,
+      releaseDecision: null,
       zoneState: 'appearing',
       zoneProximity: 0,
     });
   },
   updateDrag: (worldPosition) => {
     const state = get();
-
-    const dx = worldPosition[0] - ZONE_POSITION[0];
-    const dy = worldPosition[1] - ZONE_POSITION[1];
-    const dz = worldPosition[2] - ZONE_POSITION[2];
-    const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-
-    // Map distance to proximity: 1.0 at zone, 0.0 at outer band.
+    const distance = distanceToZone(worldPosition);
     const proximity = Math.max(0, 1 - distance / ZONE_BANDS.approaching);
-
     const nextState = stateFromDistance(distance);
 
-    // Only update state if it changed, to avoid needless re-renders.
     if (
       state.zoneState !== nextState ||
       Math.abs(state.zoneProximity - proximity) > 0.02
@@ -175,13 +204,17 @@ export const useInteractionStore = create<InteractionStore>((set, get) => ({
       set({ dragPosition: worldPosition });
     }
   },
-  endDrag: () => {
+  endDrag: (decision) => {
     set({
       draggedNodeId: null,
       dragPosition: null,
-      zoneState: 'recovery',
+      releaseDecision: decision,
+      zoneState: decision === 'enter-completing' ? 'completing' : 'recovery',
       zoneProximity: 0,
     });
+  },
+  clearReleaseDecision: () => {
+    set({ releaseDecision: null });
   },
 
   // Keyboard navigation
