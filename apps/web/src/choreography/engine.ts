@@ -74,17 +74,18 @@ function sampleTrack(
   elapsed: number,
   duration: number,
 ): number {
-  if (keyframes.length === 0) return 0;
-  if (keyframes.length === 1) return keyframes[0]!.value;
+  const first = keyframes[0];
+  if (!first) return 0;
+  if (keyframes.length === 1) return first.value;
 
   const t = Math.min(elapsed / duration, 1.0);
 
   // Find the segment containing t.
-  let prev = keyframes[0]!;
+  let prev = first;
   for (let i = 1; i < keyframes.length; i++) {
-    const next = keyframes[i]!;
+    const next = keyframes[i];
+    if (!next) continue;
     if (t <= next.t) {
-      // Interpolate between prev and next.
       const segmentLength = next.t - prev.t;
       if (segmentLength <= 0) return next.value;
       const localT = (t - prev.t) / segmentLength;
@@ -129,7 +130,8 @@ export function play(name: string): ChoreographyHandle {
     active.delete(name);
   }
 
-  const id = `choreo-${nextHandleId++}`;
+  const id = `choreo-${String(nextHandleId)}`;
+  nextHandleId += 1;
 
   let resolveFn: () => void = () => {
     /* replaced below */
@@ -185,9 +187,6 @@ export function tick(): void {
   if (active.size === 0) return;
 
   const now = performance.now() / 1000;
-
-  // Collect finished instances so we can resolve and remove them
-  // after iteration.
   const finished: ActiveChoreography[] = [];
 
   for (const instance of active.values()) {
@@ -233,12 +232,4 @@ export function cancelAll(): void {
     instance.resolve();
   }
   active.clear();
-}
-
-/**
- * A convenience for tests: reset the engine to a clean state.
- */
-export function resetForTests(): void {
-  cancelAll();
-  listeners.clear();
 }
