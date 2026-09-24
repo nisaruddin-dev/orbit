@@ -36,13 +36,14 @@ Where the PRD leaves implementation details open, this document establishes a pr
 
 When requirements conflict, use this hierarchy:
 
-1. **Core product principles**
-2. **Orbit PRD**
-3. **This TRD**
-4. **UI/UX specification**
-5. **Choreography specification**
-6. **Implementation details**
-7. **Library-specific conveniences**
+1. **Core Product Principles**
+2. **PRD**
+3. **System Architecture**
+4. **TRD**
+5. **UI/UX**
+6. **Choreography**
+7. **Implementation**
+8. **Library convenience**
 
 A library, framework, architecture pattern, or implementation shortcut must never override the product experience.
 
