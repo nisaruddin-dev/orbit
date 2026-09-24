@@ -37,7 +37,6 @@ export function PostProcessing() {
         intensity={0.35}
         luminanceThreshold={0.85}
         luminanceSmoothing={0.6}
-        mipmapBlur
       />
       <Vignette
         offset={0.3}
