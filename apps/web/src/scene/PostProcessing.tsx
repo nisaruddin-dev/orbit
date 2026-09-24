@@ -32,12 +32,14 @@ import { BlendFunction } from 'postprocessing';
  */
 export function PostProcessing() {
   return (
-    <EffectComposer>
-      <Bloom
-        intensity={0.35}
-        luminanceThreshold={0.85}
-        luminanceSmoothing={0.6}
-      />
+<EffectComposer>
+     <Bloom
+  intensity={0.35}
+  luminanceThreshold={0.85}
+  luminanceSmoothing={0.6}
+  mipmapBlur={false}
+  radius={0.4}
+/>
       <Vignette
         offset={0.3}
         darkness={0.5}
