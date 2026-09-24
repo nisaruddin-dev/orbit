@@ -16,3 +16,4 @@ export { PostProcessing } from './PostProcessing';
 export { Rings } from './Rings';
 export { Sky } from './Sky';
 export { TaskNode } from './TaskNode';
+export { CompletionZone } from './CompletionZone';

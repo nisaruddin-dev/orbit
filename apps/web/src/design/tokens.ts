@@ -94,6 +94,8 @@ export const SPATIAL = {
 
   floorY: -2,
   fogDensity: 0.04,
+  completionZonePosition: [0, -1.5, 3] as const,
+  completionZoneRadius: 3.5,
 } as const;
 
 /**

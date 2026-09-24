@@ -10,6 +10,7 @@ import { CameraRig, useCameraKeyboard } from '@/camera';
 import { CAMERA } from '@/design';
 import { InteractionHandler, useKeyboardNavigation } from '@/input';
 import {
+  CompletionZone,
   Core,
   Dust,
   Floor,
@@ -179,6 +180,8 @@ export default function App() {
             />
           );
         })}
+
+        <CompletionZone />
 
         <Dust />
         <PostProcessing />
