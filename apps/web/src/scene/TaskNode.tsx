@@ -383,20 +383,21 @@ export function TaskNode({
           : 1.0;
     if (group) {
       group.scale.setScalar(appliedScale);
-      // Hide the group entirely when the dissolve has shrunk it
-      // below a visible threshold. This is the moment the solid
-      // node becomes the particle burst.
       group.visible = appliedScale > 0.02;
     }
 
-    // Label opacity: completion choreography overrides when active.
+    // Label opacity. Only write when the value has changed —
+    // troika-three-text re-renders its SDF texture on every write,
+    // which is expensive. During normal use the value is 1.0 and
+    // never changes, so this write is skipped entirely.
     const label = labelRef.current;
     if (label) {
       const targetLabelOpacity = isCompleting
         ? choreographyLabelRef.current
         : 1.0;
-      // troika-three-text exposes fillOpacity on the Text object.
-      label.fillOpacity = targetLabelOpacity;
+      if (Math.abs(label.fillOpacity - targetLabelOpacity) > 0.01) {
+        label.fillOpacity = targetLabelOpacity;
+      }
     }
   });
 

@@ -8,38 +8,23 @@
  * animates ~240 instanced particles from the node's center
  * outward, then fades them out.
  *
- * The component is inert when no node is completing. When a
- * completion begins, it seeds particle directions from the
- * current node position, then plays the dissolve.
- *
- * Particle count and drift are per UI/UX §116: approximately
- * 240 dissolve particles, drifting outward and upward.
+ * Random seeding is done once on mount inside an effect, not
+ * during render. React 19 forbids calling impure functions
+ * (including Math.random) during render.
  */
 
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import {
-  Color,
-  Matrix4,
-  MeshBasicMaterial,
-  Vector3,
-} from 'three';
+import { Color, Matrix4, MeshBasicMaterial, Quaternion, Vector3 } from 'three';
 import type { InstancedMesh } from 'three';
 
 import { ACCENT } from '@/design';
 import { subscribe } from '@/choreography';
 import { useInteractionStore } from '@/state/interaction';
 
-/** Number of dissolve particles. UI/UX §116. */
 const PARTICLE_COUNT = 240;
-
-/** Maximum outward drift distance, in world units. */
 const MAX_DRIFT = 2.4;
-
-/** Base particle radius. */
 const PARTICLE_RADIUS = 0.03;
-
-/** How much the particles drift upward as they go out. */
 const UPWARD_BIAS = 0.6;
 
 export function DissolveParticles() {
@@ -49,7 +34,7 @@ export function DissolveParticles() {
   const nodeSettledPositions = useInteractionStore(
     (s) => s.nodeSettledPositions,
   );
-  const tasks = useInteractionStore((s) => s.nodePositions);
+  const nodePositions = useInteractionStore((s) => s.nodePositions);
 
   const particleColor = useMemo(() => new Color(ACCENT.done), []);
 
@@ -67,40 +52,41 @@ export function DissolveParticles() {
   // Progress of the dissolve, 0..1, from the choreography.
   const progressRef = useRef(0.0);
 
-  // Per-particle direction vectors, seeded once per dissolve.
-  const directions = useMemo(() => {
-    const arr: Vector3[] = [];
+  // Per-particle direction vectors and scales. Seeded once on
+  // mount inside an effect, not during render.
+  const directionsRef = useRef<Vector3[]>([]);
+  const scalesRef = useRef<number[]>([]);
+
+  // Scratch objects reused each frame.
+  const scratchMatrix = useMemo(() => new Matrix4(), []);
+  const scratchPosition = useMemo(() => new Vector3(), []);
+  const scratchScale = useMemo(() => new Vector3(), []);
+  const scratchQuat = useMemo(() => new Quaternion(), []);
+
+  // The world position where the dissolve began.
+  const originRef = useRef<[number, number, number] | null>(null);
+
+  // Seed particle data once on mount. Inside an effect so it is
+  // not part of render.
+  useEffect(() => {
+    const dirs: Vector3[] = [];
     for (let i = 0; i < PARTICLE_COUNT; i++) {
-      // Random unit vector with an upward bias so particles tend
-      // to drift up and out.
       const x = Math.random() * 2 - 1;
       const y = Math.random() * 2 - 1 + UPWARD_BIAS;
       const z = Math.random() * 2 - 1;
       const v = new Vector3(x, y, z);
       if (v.lengthSq() < 0.0001) v.set(0, 1, 0);
       v.normalize();
-      arr.push(v);
+      dirs.push(v);
     }
-    return arr;
-  }, []);
+    directionsRef.current = dirs;
 
-  // Random per-particle scale, so the burst does not look uniform.
-  const scales = useMemo(() => {
-    const arr: number[] = [];
+    const s: number[] = [];
     for (let i = 0; i < PARTICLE_COUNT; i++) {
-      arr.push(0.6 + Math.random() * 0.8);
+      s.push(0.6 + Math.random() * 0.8);
     }
-    return arr;
+    scalesRef.current = s;
   }, []);
-
-  // Scratch objects reused each frame to avoid GC pressure.
-  const scratchMatrix = useMemo(() => new Matrix4(), []);
-  const scratchPosition = useMemo(() => new Vector3(), []);
-  const scratchScale = useMemo(() => new Vector3(), []);
-
-  // The world position where the dissolve began. Captured once
-  // when completingNodeId changes.
-  const originRef = useRef<[number, number, number] | null>(null);
 
   useEffect(() => {
     if (!completingNodeId) {
@@ -112,12 +98,11 @@ export function DissolveParticles() {
     if (pos) {
       originRef.current = pos;
     } else {
-      const fallback = tasks[completingNodeId];
+      const fallback = nodePositions[completingNodeId];
       if (fallback) originRef.current = fallback;
     }
-  }, [completingNodeId, nodeSettledPositions, tasks]);
+  }, [completingNodeId, nodeSettledPositions, nodePositions]);
 
-  // Subscribe to the dissolve's particles.progress track.
   useEffect(() => {
     const unsubscribe = subscribe(
       (_target, property, value) => {
@@ -136,17 +121,14 @@ export function DissolveParticles() {
 
     const origin = originRef.current;
 
-    // Inactive: hide the mesh and skip all work.
     if (!origin || !completingNodeId) {
-      material.opacity = 0;
-      mesh.visible = false;
+      if (material.opacity !== 0) material.opacity = 0;
+      if (mesh.visible) mesh.visible = false;
       return;
     }
 
     const progress = progressRef.current;
 
-    // Fade in over the first 15% of the dissolve, out over the
-    // last 40%.
     let opacity: number;
     if (progress < 0.15) {
       opacity = progress / 0.15;
@@ -158,10 +140,11 @@ export function DissolveParticles() {
 
     material.opacity = opacity * 0.9;
 
-    // Distance each particle has travelled. Ease-out so particles
-    // burst quickly then slow.
     const driftEase = 1 - Math.pow(1 - progress, 2.5);
     const driftDistance = driftEase * MAX_DRIFT;
+
+    const directions = directionsRef.current;
+    const scales = scalesRef.current;
 
     for (let i = 0; i < PARTICLE_COUNT; i++) {
       const dir = directions[i];
@@ -174,17 +157,10 @@ export function DissolveParticles() {
         origin[2] + dir.z * driftDistance,
       );
 
-      // Particles start at full size and shrink toward the end.
       const sizeScale = s * (1 - progress * 0.7);
       scratchScale.setScalar(sizeScale);
 
-      scratchMatrix.compose(
-        scratchPosition,
-        // No rotation — particles are tiny spheres.
-        mesh.quaternion,
-        scratchScale,
-      );
-
+      scratchMatrix.compose(scratchPosition, scratchQuat, scratchScale);
       mesh.setMatrixAt(i, scratchMatrix);
     }
 
