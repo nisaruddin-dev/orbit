@@ -171,7 +171,7 @@ export function EditPanelTracker() {
       const task = tasks.find((t) => t.id === editingNodeId);
       const angle = task?.orbitAngle;
       const radius = task?.orbitRadius;
-      if (angle !== null && angle !== undefined && radius !== null && radius !== undefined) {
+      if (angle != null && radius != null) {
         world = [
           Math.cos(angle) * radius,
           0,
