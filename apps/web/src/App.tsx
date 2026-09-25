@@ -24,6 +24,7 @@ import {
   Rings,
   Sky,
   TaskNode,
+  ZoneProjection,
 } from '@/scene';
 import { useInteractionStore } from '@/state/interaction';
 import { useTaskStore } from '@/state/tasks';
@@ -94,6 +95,7 @@ export default function App() {
         })}
 
         <CompletionZone />
+        <ZoneProjection />
 
         <Dust />
         <PostProcessing />

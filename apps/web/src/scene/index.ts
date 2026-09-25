@@ -17,3 +17,4 @@ export { Rings } from './Rings';
 export { Sky } from './Sky';
 export { TaskNode } from './TaskNode';
 export { CompletionZone } from './CompletionZone';
+export { ZoneProjection } from './ZoneProjection';
