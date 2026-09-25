@@ -1,11 +1,15 @@
 /**
  * Orbit — Root application component.
+ *
+ * Reads tasks from the task store. In 7.5c-1, this replaced the
+ * const MOCK_TASKS array that lived here. The store is the single
+ * source of truth for task data.
  */
 
 import { useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { ChoreographyTicker } from '@/choreography';
 
+import { ChoreographyTicker } from '@/choreography';
 import { CameraRig, useCameraKeyboard } from '@/camera';
 import { CAMERA } from '@/design';
 import { InteractionHandler, useKeyboardNavigation } from '@/input';
@@ -22,115 +26,21 @@ import {
   TaskNode,
 } from '@/scene';
 import { useInteractionStore } from '@/state/interaction';
-import type { Task } from '@orbit/shared';
-
-/**
- * Mock tasks for development. These conform to the canonical
- * Task interface. They will be replaced by real data from the
- * backend in Part 8.
- */
-const NOW = new Date().toISOString();
-
-const MOCK_TASKS: Task[] = [
-  {
-    id: 'task-1',
-    userId: 'mock-user',
-    title: 'Review PR feedback',
-    notes: '',
-    ring: 'today',
-    priority: 2,
-    status: 'idle',
-    dueAt: null,
-    recurrence: null,
-    createdAt: NOW,
-    updatedAt: NOW,
-    completedAt: null,
-    archivedAt: null,
-    orbitAngle: 0,
-    orbitRadius: 4,
-  },
-  {
-    id: 'task-2',
-    userId: 'mock-user',
-    title: 'Team standup',
-    notes: '',
-    ring: 'today',
-    priority: 1,
-    status: 'idle',
-    dueAt: null,
-    recurrence: null,
-    createdAt: NOW,
-    updatedAt: NOW,
-    completedAt: null,
-    archivedAt: null,
-    orbitAngle: Math.PI / 2,
-    orbitRadius: 4,
-  },
-  {
-    id: 'task-3',
-    userId: 'mock-user',
-    title: 'Write design doc',
-    notes: '',
-    ring: 'week',
-    priority: 1,
-    status: 'idle',
-    dueAt: null,
-    recurrence: null,
-    createdAt: NOW,
-    updatedAt: NOW,
-    completedAt: null,
-    archivedAt: null,
-    orbitAngle: Math.PI / 4,
-    orbitRadius: 7,
-  },
-  {
-    id: 'task-4',
-    userId: 'mock-user',
-    title: 'Refactor auth module',
-    notes: '',
-    ring: 'week',
-    priority: 0,
-    status: 'idle',
-    dueAt: null,
-    recurrence: null,
-    createdAt: NOW,
-    updatedAt: NOW,
-    completedAt: null,
-    archivedAt: null,
-    orbitAngle: Math.PI,
-    orbitRadius: 7,
-  },
-  {
-    id: 'task-5',
-    userId: 'mock-user',
-    title: 'Learn Rust',
-    notes: '',
-    ring: 'someday',
-    priority: 0,
-    status: 'idle',
-    dueAt: null,
-    recurrence: null,
-    createdAt: NOW,
-    updatedAt: NOW,
-    completedAt: null,
-    archivedAt: null,
-    orbitAngle: (3 * Math.PI) / 4,
-    orbitRadius: 10,
-  },
-];
+import { useTaskStore } from '@/state/tasks';
 
 export default function App() {
   useCameraKeyboard();
   useKeyboardNavigation();
 
+  const tasks = useTaskStore((s) => s.tasks);
   const setNodeList = useInteractionStore((s) => s.setNodeList);
 
-  // Register the node list once. Positions are derived from the
-  // same math the render loop uses.
+  // Register the node list when tasks change. Positions are
+  // derived from the same math the render loop uses.
   useEffect(() => {
-    const ids = MOCK_TASKS.map((t) => t.id);
+    const ids = tasks.map((t) => t.id);
     const positions: Record<string, [number, number, number]> = {};
-    for (const task of MOCK_TASKS) {
+    for (const task of tasks) {
       if (task.orbitAngle === null || task.orbitRadius === null) continue;
       positions[task.id] = [
         Math.cos(task.orbitAngle) * task.orbitRadius,
@@ -139,7 +49,7 @@ export default function App() {
       ];
     }
     setNodeList(ids, positions);
-  }, [setNodeList]);
+  }, [tasks, setNodeList]);
 
   return (
     <div className="app">
@@ -166,7 +76,7 @@ export default function App() {
         <Core />
         <Rings />
 
-        {MOCK_TASKS.map((task) => {
+        {tasks.map((task) => {
           if (task.orbitAngle === null || task.orbitRadius === null) return null;
           const x = Math.cos(task.orbitAngle) * task.orbitRadius;
           const z = Math.sin(task.orbitAngle) * task.orbitRadius;
@@ -185,7 +95,7 @@ export default function App() {
 
         <Dust />
         <PostProcessing />
-	<ChoreographyTicker />
+        <ChoreographyTicker />
       </Canvas>
     </div>
   );
