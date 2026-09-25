@@ -80,6 +80,7 @@ export function TaskNode({
   const clearCompletingNode = useInteractionStore(
     (s) => s.clearCompletingNode,
   );
+  const setLastCompleted = useInteractionStore((s) => s.setLastCompleted);
   const clearReleaseDecision = useInteractionStore(
     (s) => s.clearReleaseDecision,
   );
@@ -153,8 +154,6 @@ export function TaskNode({
   // once and clear the completing state when it finishes.
   useEffect(() => {
     if (!isCompleting) {
-      // Reset the choreography values so the node returns to its
-      // base appearance if a previous completion did not finish.
       choreographyScaleRef.current = 1.0;
       choreographyShellRef.current = 0.15;
       choreographyLabelRef.current = 1.0;
@@ -163,10 +162,16 @@ export function TaskNode({
     }
 
     const handle = play('completion');
+    const priorPosition = settledPosition;
     void handle.promise.then(() => {
+      // Record the completion for the 5-second undo ghost.
+      setLastCompleted({ taskId: id, priorPosition });
       clearCompletingNode();
     });
-  }, [isCompleting, clearCompletingNode]);
+    // We intentionally do not depend on settledPosition; the
+    // prior position is captured at the moment completion begins.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCompleting, clearCompletingNode, id]);
 
   // Ring change animation.
   useEffect(() => {

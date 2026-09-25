@@ -30,6 +30,7 @@ import {
 import { useInteractionStore } from '@/state/interaction';
 import { useTaskStore } from '@/state/tasks';
 import { EditPanel, EditPanelTracker } from '@/ui/EditPanel';
+import { UndoGhost } from '@/ui/UndoGhost';
 
 import './App.css';
 
@@ -106,6 +107,7 @@ export default function App() {
       </Canvas>
 
       <EditPanel />
+      <UndoGhost />
     </div>
   );
 }

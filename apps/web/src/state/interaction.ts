@@ -2,28 +2,23 @@
  * @module state/interaction
  *
  * Interaction store. Tracks selection, hover, drag, the eight-state
- * completion zone, the settled position of each node, and the node
- * currently running the completion choreography.
- *
- * The settled position is where a node sits when it is not being
- * dragged. It starts at the node's orbit position and is updated
- * when the user drops a node (commit) or releases it into the
- * completion zone (enter-completing).
+ * completion zone, the settled position of each node, the node
+ * currently running the completion choreography, and the most
+ * recently completed task (for the 5-second undo ghost).
  *
  * `completingNodeId` is set when a release enters completing, and
- * cleared when the completion choreography finishes. While it is
- * set, the corresponding node is locked from dragging.
+ * cleared when the completion choreography finishes.
  *
- * Owning settled position and completing state here — rather than
- * inside TaskNode — satisfies System Architecture §116 (One Owner
- * per state) and §163 (Interaction Controller owns user input).
+ * `lastCompleted` is set when a completion choreography finishes.
+ * The undo ghost reads it, and either restores the task or lets
+ * the window expire.
+ *
+ * Owning these states here — rather than inside components —
+ * satisfies System Architecture §116 (One Owner per state).
  */
 
 import { create } from 'zustand';
 
-/**
- * The eight zone states. See module doc for meanings.
- */
 export type ZoneState =
   | 'hidden'
   | 'appearing'
@@ -34,27 +29,28 @@ export type ZoneState =
   | 'completing'
   | 'recovery';
 
-/**
- * The release decision made when a drag ends.
- */
 export type ReleaseDecision =
   | 'commit'
   | 'spring-back'
   | 'enter-completing'
   | null;
 
-/** Proximity band thresholds, in world units. */
 export const ZONE_BANDS = {
   approaching: 3.5,
   near: 2.0,
   validRelease: 1.0,
 } as const;
 
-/**
- * The completion zone's world position. Must match
- * SPATIAL.completionZonePosition in tokens.ts.
- */
 const ZONE_POSITION: readonly [number, number, number] = [0, -1.5, 3];
+
+/**
+ * The most recently completed task's information, used by the
+ * undo ghost. Null when no completion is in the undo window.
+ */
+export interface LastCompleted {
+  taskId: string;
+  priorPosition: [number, number, number];
+}
 
 interface InteractionStore {
   // Selection
@@ -70,6 +66,7 @@ interface InteractionStore {
 
   // Completion
   completingNodeId: string | null;
+  lastCompleted: LastCompleted | null;
 
   // Keyboard navigation
   nodeOrder: string[];
@@ -96,6 +93,8 @@ interface InteractionStore {
 
   // Actions — completion
   clearCompletingNode: () => void;
+  setLastCompleted: (info: LastCompleted) => void;
+  clearLastCompleted: () => void;
 
   // Actions — keyboard navigation
   setNodeList: (
@@ -129,31 +128,25 @@ function stateFromDistance(distance: number): ZoneState {
 export function distanceToZone(
   worldPosition: readonly [number, number, number],
 ): number {
-  // The zone is a destination on the drag plane. Drag happens on
-  // the ground plane (y = 0), and the zone sits below that plane
-  // for visual reasons (y = -1.5). Measuring Y would add a fixed
-  // 1.5 unit offset to every distance, which would make the
-  // valid-release threshold unreachable. Measure in XZ only.
   const dx = worldPosition[0] - ZONE_POSITION[0];
   const dz = worldPosition[2] - ZONE_POSITION[2];
   return Math.sqrt(dx * dx + dz * dz);
 }
 
 export const useInteractionStore = create<InteractionStore>((set, get) => ({
-  // Initial state
   selectedNodeId: null,
   hoveredNodeId: null,
   draggedNodeId: null,
   dragPosition: null,
   releaseDecision: null,
   completingNodeId: null,
+  lastCompleted: null,
   nodeOrder: [],
   nodePositions: {},
   nodeSettledPositions: {},
   zoneState: 'hidden',
   zoneProximity: 0,
 
-  // Selection
   selectNode: (id) => {
     set({ selectedNodeId: id });
   },
@@ -167,7 +160,6 @@ export const useInteractionStore = create<InteractionStore>((set, get) => ({
     set({ hoveredNodeId: null });
   },
 
-  // Dragging
   beginDrag: (id) => {
     set({
       draggedNodeId: id,
@@ -213,8 +205,13 @@ export const useInteractionStore = create<InteractionStore>((set, get) => ({
   clearCompletingNode: () => {
     set({ completingNodeId: null });
   },
+  setLastCompleted: (info) => {
+    set({ lastCompleted: info });
+  },
+  clearLastCompleted: () => {
+    set({ lastCompleted: null });
+  },
 
-  // Keyboard navigation
   setNodeList: (ids, positions) => {
     const existing = get().nodeSettledPositions;
     const seeded: Record<string, [number, number, number]> = { ...existing };
@@ -287,7 +284,6 @@ export const useInteractionStore = create<InteractionStore>((set, get) => ({
     if (bestId) set({ selectedNodeId: bestId });
   },
 
-  // Settled positions
   setNodeSettledPosition: (nodeId, position) => {
     const existing = get().nodeSettledPositions;
     set({
@@ -298,7 +294,6 @@ export const useInteractionStore = create<InteractionStore>((set, get) => ({
     });
   },
 
-  // Zone
   setZoneState: (state) => {
     set({ zoneState: state });
   },

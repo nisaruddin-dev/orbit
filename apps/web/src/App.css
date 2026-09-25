@@ -165,3 +165,89 @@
   font-size: 0.78rem;
   padding: 7px 4px;
 }
+/* ---------- Undo ghost ---------- */
+
+.undo-ghost {
+  position: fixed;
+  left: 50%;
+  bottom: 32px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  background: rgba(30, 34, 51, 0.92);
+  border: 1px solid rgba(232, 234, 242, 0.14);
+  border-radius: 10px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  font-family: Inter, system-ui, sans-serif;
+  color: #e8eaf2;
+  z-index: 1000;
+  overflow: hidden;
+  animation: undo-ghost-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes undo-ghost-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.undo-ghost__content {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  max-width: 320px;
+}
+
+.undo-ghost__title {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #e8eaf2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.undo-ghost__meta {
+  font-size: 0.78rem;
+  color: #a2a8bd;
+  white-space: nowrap;
+}
+
+.undo-ghost__button {
+  background: rgba(123, 211, 234, 0.12);
+  border: 1px solid rgba(123, 211, 234, 0.4);
+  border-radius: 6px;
+  padding: 5px 12px;
+  color: #7bd3ea;
+  font-size: 0.8rem;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.undo-ghost__button:hover {
+  background: rgba(123, 211, 234, 0.2);
+  border-color: rgba(123, 211, 234, 0.6);
+}
+
+.undo-ghost__progress {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  background: #7bd3ea;
+  transform-origin: left center;
+  transition: transform 100ms linear;
+  opacity: 0.6;
+}
