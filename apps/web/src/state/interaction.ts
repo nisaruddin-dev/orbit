@@ -1,29 +1,19 @@
 /**
  * @module state/interaction
  *
- * Interaction store. Tracks selection, hover, drag, and the
- * eight-state completion zone.
+ * Interaction store. Tracks selection, hover, drag, the eight-state
+ * completion zone, and — since 7.5a — the settled position of
+ * each node.
  *
- * The zone state machine (UI/UX §40) lives here so any system —
- * drag, choreography, audio (later) — can read it.
+ * The settled position is where a node sits when it is not being
+ * dragged. It starts at the node's orbit position and is updated
+ * when the user drops a node (commit) or releases it into the
+ * completion zone (enter-completing).
  *
- * Eight states:
- *   hidden         — no drag in progress
- *   appearing      — drag just started, zone fading in
- *   available      — zone visible, no node nearby
- *   approaching    — node within proximity radius
- *   near           — node close, zone glowing strongly
- *   valid-release  — node within release threshold
- *   completing     — node released inside zone (7.6 handles dissolve)
- *   recovery       — node released outside, zone fading out
- *
- * Release decisions are made in InteractionHandler on END_DRAG.
- * The decision is stored in `releaseDecision` for TaskNode to read.
- *
- * TECH DEBT (fix in 7.5):
- * Node settled position is still owned by TaskNode.tsx. This
- * violates System Architecture §116 (One Owner per state). The
- * refactor moves it here as the first task of 7.5.
+ * Owning settled position here — rather than inside TaskNode —
+ * satisfies System Architecture §116 (One Owner per state) and
+ * §163 (Interaction Controller owns user input). 7.3 deferred
+ * this; 7.5a delivers it.
  */
 
 import { create } from 'zustand';
@@ -42,8 +32,7 @@ export type ZoneState =
   | 'recovery';
 
 /**
- * The release decision made when a drag ends. TaskNode reads this
- * to know whether to commit, spring back, or enter completing.
+ * The release decision made when a drag ends.
  */
 export type ReleaseDecision =
   | 'commit'
@@ -53,11 +42,8 @@ export type ReleaseDecision =
 
 /** Proximity band thresholds, in world units. */
 export const ZONE_BANDS = {
-  /** Distance at which the zone leaves `available` and enters `approaching`. */
   approaching: 3.5,
-  /** Distance at which the zone leaves `approaching` and enters `near`. */
   near: 2.0,
-  /** Distance at which the zone leaves `near` and enters `valid-release`. */
   validRelease: 1.0,
 } as const;
 
@@ -79,17 +65,23 @@ interface InteractionStore {
   draggedNodeId: string | null;
   dragPosition: [number, number, number] | null;
 
-  // The release decision. Set by InteractionHandler on END_DRAG,
-  // read by TaskNode, cleared when the node has reacted to it.
+  // Release
   releaseDecision: ReleaseDecision;
 
   // Keyboard navigation
   nodeOrder: string[];
   nodePositions: Record<string, [number, number, number]>;
 
+  /**
+   * Settled position per node. Where each node sits when not
+   * being dragged. Seeded on node registration; updated on
+   * commit and enter-completing.
+   */
+  nodeSettledPositions: Record<string, [number, number, number]>;
+
   // Completion zone
   zoneState: ZoneState;
-  zoneProximity: number; // 0.0 (far) to 1.0 (at zone center)
+  zoneProximity: number;
 
   // Actions — selection
   selectNode: (id: string | null) => void;
@@ -100,15 +92,7 @@ interface InteractionStore {
   // Actions — dragging
   beginDrag: (id: string) => void;
   updateDrag: (worldPosition: [number, number, number]) => void;
-  /**
-   * End a drag. The decision is passed in by the caller
-   * (InteractionHandler), which has already read the zone state.
-   */
   endDrag: (decision: Exclude<ReleaseDecision, null>) => void;
-
-  /**
-   * Clear the release decision once TaskNode has reacted to it.
-   */
   clearReleaseDecision: () => void;
 
   // Actions — keyboard navigation
@@ -122,14 +106,17 @@ interface InteractionStore {
     direction: 'up' | 'down' | 'left' | 'right',
   ) => void;
 
+  // Actions — settled positions
+  setNodeSettledPosition: (
+    nodeId: string,
+    position: [number, number, number],
+  ) => void;
+
   // Actions — zone
   setZoneState: (state: ZoneState) => void;
   setZoneProximity: (value: number) => void;
 }
 
-/**
- * Compute the zone state from a distance.
- */
 function stateFromDistance(distance: number): ZoneState {
   if (distance < ZONE_BANDS.validRelease) return 'valid-release';
   if (distance < ZONE_BANDS.near) return 'near';
@@ -137,9 +124,6 @@ function stateFromDistance(distance: number): ZoneState {
   return 'available';
 }
 
-/**
- * Compute the distance from a world position to the zone.
- */
 export function distanceToZone(
   worldPosition: readonly [number, number, number],
 ): number {
@@ -158,6 +142,7 @@ export const useInteractionStore = create<InteractionStore>((set, get) => ({
   releaseDecision: null,
   nodeOrder: [],
   nodePositions: {},
+  nodeSettledPositions: {},
   zoneState: 'hidden',
   zoneProximity: 0,
 
@@ -219,7 +204,22 @@ export const useInteractionStore = create<InteractionStore>((set, get) => ({
 
   // Keyboard navigation
   setNodeList: (ids, positions) => {
-    set({ nodeOrder: ids, nodePositions: positions });
+    // Seed settled positions from the initial positions. Only set
+    // a node's position if it has not been set before — so a
+    // reload does not wipe a user's last drop.
+    const existing = get().nodeSettledPositions;
+    const seeded: Record<string, [number, number, number]> = { ...existing };
+    for (const id of ids) {
+      if (!seeded[id]) {
+        const pos = positions[id];
+        if (pos) seeded[id] = pos;
+      }
+    }
+    set({
+      nodeOrder: ids,
+      nodePositions: positions,
+      nodeSettledPositions: seeded,
+    });
   },
   selectNext: () => {
     const { nodeOrder, selectedNodeId } = get();
@@ -276,6 +276,17 @@ export const useInteractionStore = create<InteractionStore>((set, get) => ({
     }
 
     if (bestId) set({ selectedNodeId: bestId });
+  },
+
+  // Settled positions
+  setNodeSettledPosition: (nodeId, position) => {
+    const existing = get().nodeSettledPositions;
+    set({
+      nodeSettledPositions: {
+        ...existing,
+        [nodeId]: position,
+      },
+    });
   },
 
   // Zone

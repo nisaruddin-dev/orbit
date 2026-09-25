@@ -7,29 +7,18 @@
  * Four layers: Core (sphere), Shell (wireframe), Ring (torus),
  * Label (SDF text).
  *
- * Responds to hover, selection, drag, and release decisions from
- * the interaction store.
+ * The node's settled position is owned by the interaction store
+ * (§7.5a). TaskNode reads it from the store and writes to it on
+ * commit and enter-completing. The local `settledPosition` state
+ * that lived here in 7.3–7.4 is gone; the store is the single
+ * owner.
  *
- * On drag end, reads `releaseDecision` from the store:
- *   commit           → settle at the drop position
- *   spring-back      → animate back to the pre-drag position
- *   enter-completing → hold in place, awaiting 7.6's dissolve
- *
- * All position updates happen in `useFrame`, imperatively, via
- * the group ref. Position is never read from a ref during render —
- * that would violate React's rules and would not re-render.
- *
- * TECH DEBT (fix in 7.5):
- * This component currently owns its own `settledPosition` state.
- * This violates System Architecture §116 (One Owner per state)
- * and §163 (Interaction Controller owns user input).
- *
- * The refactor: move `settledPosition` to the interaction store.
- * TaskNode will read the position from the store instead of local
- * state. This happens as the first task of Sub-step 7.5.
+ * All per-frame position motion happens imperatively in useFrame,
+ * via the group ref. Position is never read from a ref during
+ * render.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Color, MeshStandardMaterial, MeshBasicMaterial, Vector3 } from 'three';
 import { Text } from '@react-three/drei';
@@ -56,9 +45,6 @@ interface TaskNodeProps {
   title: string;
 }
 
-/**
- * A single task node.
- */
 export function TaskNode({ id, priority, position, title }: TaskNodeProps) {
   const groupRef = useRef<Group>(null);
   const ringRef = useRef<Mesh>(null);
@@ -72,27 +58,33 @@ export function TaskNode({ id, priority, position, title }: TaskNodeProps) {
     (s) => s.clearReleaseDecision,
   );
   const beginDrag = useInteractionStore((s) => s.beginDrag);
+  const setNodeSettledPosition = useInteractionStore(
+    (s) => s.setNodeSettledPosition,
+  );
 
-  // The node's "resting" position — where it sits when not being
-  // dragged. Updated on commit or on enter-completing.
-  const [settledPosition, setSettledPosition] = useState<
-    [number, number, number]
-  >(position);
+  // The settled position comes from the store. If the store has
+  // no entry yet, fall back to the initial position prop. This is
+  // only true for the very first frame before registration.
+  const settledPosition = useInteractionStore(
+    (s) => s.nodeSettledPositions[id] ?? position,
+  );
 
-  // The current animated position. This is written to the group
-  // ref every frame inside useFrame. Never read during render.
+  // The current animated position, written to the group every
+  // frame. Never read during render.
   const currentPositionRef = useRef(new Vector3(...position));
 
-  // Spring-back state. When non-null, the node is animating from
-  // `from` to `settledPosition` over `duration` seconds.
+  // Spring-back state.
   const springRef = useRef<{
     from: [number, number, number];
     elapsed: number;
     duration: number;
   } | null>(null);
 
-  // Track the last drag position observed while dragging, so we
-  // know where to spring back from.
+  // The target the spring is heading toward. Captured at the
+  // moment the spring begins so a store update mid-spring does
+  // not corrupt the animation.
+  const springTargetRef = useRef<[number, number, number] | null>(null);
+
   const lastDragPositionRef = useRef<[number, number, number] | null>(null);
   const wasDraggedRef = useRef(false);
 
@@ -110,37 +102,54 @@ export function TaskNode({ id, priority, position, title }: TaskNodeProps) {
       const lastPos = lastDragPositionRef.current;
 
       if (decision === 'commit' && lastPos) {
-        setSettledPosition(lastPos);
+        setNodeSettledPosition(id, lastPos);
       } else if (decision === 'spring-back' && lastPos) {
+        // The spring animates from lastPos back to the current
+        // settled position. Capture the target now so a store
+        // update mid-spring does not change the target.
+        springTargetRef.current = settledPosition;
         springRef.current = {
           from: lastPos,
           elapsed: 0,
           duration: 0.6,
         };
       } else if (decision === 'enter-completing') {
-        if (lastPos) setSettledPosition(lastPos);
+        if (lastPos) setNodeSettledPosition(id, lastPos);
       }
 
       lastDragPositionRef.current = null;
       clearReleaseDecision();
     }
     wasDraggedRef.current = isDragged;
-  }, [isDragged, releaseDecision, clearReleaseDecision]);
+    // We intentionally do not depend on settledPosition: the
+    // spring captures its own target on start. Re-running this
+    // effect when settledPosition changes would cancel an active
+    // spring.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    isDragged,
+    releaseDecision,
+    clearReleaseDecision,
+    id,
+    setNodeSettledPosition,
+  ]);
 
   const coreColor = useMemo(
     () => new Color(PRIORITY_COLORS[priority]),
     [priority],
   );
 
-  const coreMaterial = useMemo(() => {
-    return new MeshStandardMaterial({
-      color: coreColor,
-      roughness: 0.8,
-      metalness: 0.0,
-      emissive: coreColor,
-      emissiveIntensity: 0.15,
-    });
-  }, [coreColor]);
+  const coreMaterial = useMemo(
+    () =>
+      new MeshStandardMaterial({
+        color: coreColor,
+        roughness: 0.8,
+        metalness: 0.0,
+        emissive: coreColor,
+        emissiveIntensity: 0.15,
+      }),
+    [coreColor],
+  );
 
   const shellMaterial = useMemo(
     () =>
@@ -165,10 +174,7 @@ export function TaskNode({ id, priority, position, title }: TaskNodeProps) {
     [coreColor],
   );
 
-  // Single useFrame. All per-frame motion happens here, including
-  // position. Nothing reads refs during render.
   useFrame((_state, delta) => {
-    // 1. Determine the target position for this frame.
     let targetX: number;
     let targetY: number;
     let targetZ: number;
@@ -177,22 +183,23 @@ export function TaskNode({ id, priority, position, title }: TaskNodeProps) {
       targetX = dragPosition[0];
       targetY = dragPosition[1];
       targetZ = dragPosition[2];
-    } else if (springRef.current) {
+    } else if (springRef.current && springTargetRef.current) {
       const spring = springRef.current;
+      const target = springTargetRef.current;
       spring.elapsed += delta;
       const t = Math.min(spring.elapsed / spring.duration, 1.0);
 
-      // Overshoot: cubic-bezier(0.34, 1.56, 0.64, 1)
       const c1 = 1.70158;
       const c3 = c1 + 1;
       const eased = 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
 
-      targetX = spring.from[0] + (settledPosition[0] - spring.from[0]) * eased;
-      targetY = spring.from[1] + (settledPosition[1] - spring.from[1]) * eased;
-      targetZ = spring.from[2] + (settledPosition[2] - spring.from[2]) * eased;
+      targetX = spring.from[0] + (target[0] - spring.from[0]) * eased;
+      targetY = spring.from[1] + (target[1] - spring.from[1]) * eased;
+      targetZ = spring.from[2] + (target[2] - spring.from[2]) * eased;
 
       if (spring.elapsed >= spring.duration) {
         springRef.current = null;
+        springTargetRef.current = null;
       }
     } else {
       targetX = settledPosition[0];
@@ -202,20 +209,17 @@ export function TaskNode({ id, priority, position, title }: TaskNodeProps) {
 
     currentPositionRef.current.set(targetX, targetY, targetZ);
 
-    // 2. Apply to the group.
     const group = groupRef.current;
     if (group) {
       group.position.set(targetX, targetY, targetZ);
     }
 
-    // 3. Ring rotation.
     const ring = ringRef.current;
     if (ring) {
       const speed = isDragged ? 0.8 : isSelected ? 0.4 : 0.1;
       ring.rotation.z += speed * delta;
     }
 
-    // 4. Core glow.
     const targetGlow = isDragged
       ? 1.5
       : isSelected
@@ -228,7 +232,6 @@ export function TaskNode({ id, priority, position, title }: TaskNodeProps) {
     const step = Math.sign(deltaGlow) * Math.min(Math.abs(deltaGlow), 4 * delta);
     coreMaterial.emissiveIntensity = currentGlow + step;
 
-    // 5. Shell opacity.
     const targetOpacity = isDragged
       ? 0.8
       : isSelected
