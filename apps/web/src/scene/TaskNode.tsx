@@ -7,21 +7,22 @@
  * Four layers: Core (sphere), Shell (wireframe), Ring (torus),
  * Label (SDF text).
  *
- * The node's settled position is owned by the interaction store
- * (§7.5a). TaskNode reads it from the store and writes to it on
- * commit and enter-completing. The local `settledPosition` state
- * that lived here in 7.3–7.4 is gone; the store is the single
- * owner.
+ * The node's settled position is owned by the interaction store.
+ * TaskNode reads it from the store and writes to it on commit and
+ * enter-completing.
+ *
+ * Double-clicking a node dispatches FOCUS_NODE, which the
+ * InteractionHandler routes to the camera store. The camera moves
+ * to the node; the edit panel is a later task (7.5c).
  *
  * All per-frame position motion happens imperatively in useFrame,
- * via the group ref. Position is never read from a ref during
- * render.
+ * via the group ref.
  */
 
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Color, MeshStandardMaterial, MeshBasicMaterial, Vector3 } from 'three';
-import { Text } from '@react-three/drei';
+import { Billboard, Text } from '@react-three/drei';
 import type { Group, Mesh } from 'three';
 import type { ThreeEvent } from '@react-three/fiber';
 
@@ -62,40 +63,29 @@ export function TaskNode({ id, priority, position, title }: TaskNodeProps) {
     (s) => s.setNodeSettledPosition,
   );
 
-  // The settled position comes from the store. If the store has
-  // no entry yet, fall back to the initial position prop. This is
-  // only true for the very first frame before registration.
   const settledPosition = useInteractionStore(
     (s) => s.nodeSettledPositions[id] ?? position,
   );
 
-  // The current animated position, written to the group every
-  // frame. Never read during render.
   const currentPositionRef = useRef(new Vector3(...position));
 
-  // Spring-back state.
   const springRef = useRef<{
     from: [number, number, number];
     elapsed: number;
     duration: number;
   } | null>(null);
 
-  // The target the spring is heading toward. Captured at the
-  // moment the spring begins so a store update mid-spring does
-  // not corrupt the animation.
   const springTargetRef = useRef<[number, number, number] | null>(null);
 
   const lastDragPositionRef = useRef<[number, number, number] | null>(null);
   const wasDraggedRef = useRef(false);
 
-  // Capture live drag position.
   useEffect(() => {
     if (isDragged && dragPosition) {
       lastDragPositionRef.current = dragPosition;
     }
   }, [isDragged, dragPosition]);
 
-  // React to release decisions when this node stops being dragged.
   useEffect(() => {
     if (wasDraggedRef.current && !isDragged) {
       const decision = releaseDecision;
@@ -104,9 +94,6 @@ export function TaskNode({ id, priority, position, title }: TaskNodeProps) {
       if (decision === 'commit' && lastPos) {
         setNodeSettledPosition(id, lastPos);
       } else if (decision === 'spring-back' && lastPos) {
-        // The spring animates from lastPos back to the current
-        // settled position. Capture the target now so a store
-        // update mid-spring does not change the target.
         springTargetRef.current = settledPosition;
         springRef.current = {
           from: lastPos,
@@ -121,10 +108,6 @@ export function TaskNode({ id, priority, position, title }: TaskNodeProps) {
       clearReleaseDecision();
     }
     wasDraggedRef.current = isDragged;
-    // We intentionally do not depend on settledPosition: the
-    // spring captures its own target on start. Re-running this
-    // effect when settledPosition changes would cancel an active
-    // spring.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     isDragged,
@@ -265,6 +248,11 @@ export function TaskNode({ id, priority, position, title }: TaskNodeProps) {
     e.stopPropagation();
   };
 
+  const handleDoubleClick = (e: ThreeEvent<MouseEvent>) => {
+    e.stopPropagation();
+    dispatchIntent({ type: 'FOCUS_NODE', nodeId: id });
+  };
+
   return (
     <group
       ref={groupRef}
@@ -276,6 +264,7 @@ export function TaskNode({ id, priority, position, title }: TaskNodeProps) {
         onPointerOut={handlePointerOut}
         onPointerDown={handlePointerDown}
         onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
         scale={isDragged ? 1.2 : isHovered ? 1.05 : 1.0}
       >
         <sphereGeometry args={[SPATIAL.nodeRadius, 32, 16]} />
@@ -293,17 +282,18 @@ export function TaskNode({ id, priority, position, title }: TaskNodeProps) {
         <torusGeometry args={[SPATIAL.nodeRingRadius, 0.008, 8, 64]} />
       </mesh>
 
-      <Text
-        position={[0, SPATIAL.nodeShellRadius + 0.15, 0]}
-        fontSize={0.12}
-        color="#E8EAF2"
-        anchorX="center"
-        anchorY="bottom"
-        outlineWidth={0}
-        maxWidth={3}
-      >
-        {title}
-      </Text>
+      <Billboard position={[0, SPATIAL.nodeShellRadius + 0.15, 0]}>
+        <Text
+          fontSize={0.12}
+          color="#E8EAF2"
+          anchorX="center"
+          anchorY="bottom"
+          outlineWidth={0}
+          maxWidth={3}
+        >
+          {title}
+        </Text>
+      </Billboard>
     </group>
   );
 }
