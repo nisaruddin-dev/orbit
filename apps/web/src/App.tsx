@@ -16,6 +16,7 @@ import { InteractionHandler, useKeyboardNavigation } from '@/input';
 import {
   CompletionZone,
   Core,
+  DissolveParticles,
   Dust,
   Floor,
   Fog,
@@ -96,6 +97,7 @@ export default function App() {
 
         <CompletionZone />
         <ZoneProjection />
+        <DissolveParticles />
 
         <Dust />
         <PostProcessing />

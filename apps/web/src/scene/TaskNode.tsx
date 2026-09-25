@@ -69,6 +69,7 @@ export function TaskNode({
 }: TaskNodeProps) {
   const groupRef = useRef<Group>(null);
   const ringRef = useRef<Mesh>(null);
+  const labelRef = useRef<{ fillOpacity: number } | null>(null);
 
   const isSelected = useInteractionStore((s) => s.selectedNodeId === id);
   const isHovered = useInteractionStore((s) => s.hoveredNodeId === id);
@@ -382,6 +383,20 @@ export function TaskNode({
           : 1.0;
     if (group) {
       group.scale.setScalar(appliedScale);
+      // Hide the group entirely when the dissolve has shrunk it
+      // below a visible threshold. This is the moment the solid
+      // node becomes the particle burst.
+      group.visible = appliedScale > 0.02;
+    }
+
+    // Label opacity: completion choreography overrides when active.
+    const label = labelRef.current;
+    if (label) {
+      const targetLabelOpacity = isCompleting
+        ? choreographyLabelRef.current
+        : 1.0;
+      // troika-three-text exposes fillOpacity on the Text object.
+      label.fillOpacity = targetLabelOpacity;
     }
   });
 
@@ -447,6 +462,7 @@ export function TaskNode({
 
       <Billboard position={[0, SPATIAL.nodeShellRadius + 0.15, 0]}>
         <Text
+          ref={labelRef}
           fontSize={0.12}
           color="#E8EAF2"
           anchorX="center"
