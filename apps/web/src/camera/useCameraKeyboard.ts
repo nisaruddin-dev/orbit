@@ -5,10 +5,10 @@
  *
  * Shortcuts (per UI/UX §88):
  *   O → Orbit (default view)
- *   F → Focus
+ *   F → Focus (uses the current focus target if one is set)
  *   T → Timeline
  *   A → Aurora
- *   Esc → return to Orbit
+ *   Esc → return to Orbit and clear the focus target
  *
  * Note: single-key shortcuts are disabled when a text input is
  * focused, so typing in a task title doesn't trigger camera changes.
@@ -37,6 +37,7 @@ function isTextInputFocused(): boolean {
  */
 export function useCameraKeyboard(): void {
   const setState = useCameraStore((s) => s.setState);
+  const setFocusTarget = useCameraStore((s) => s.setFocusTarget);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -63,6 +64,9 @@ export function useCameraKeyboard(): void {
           next = 'aurora';
           break;
         case 'Escape':
+          // Clear the focus target when leaving focus mode so a
+          // later press of F does not use a stale position.
+          setFocusTarget(null);
           next = 'orbit';
           break;
         default:
@@ -77,5 +81,5 @@ export function useCameraKeyboard(): void {
     return () => {
       window.removeEventListener('keydown', handler);
     };
-  }, [setState]);
+  }, [setState, setFocusTarget]);
 }

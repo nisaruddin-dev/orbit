@@ -1,43 +1,34 @@
 /**
  * @module input/InteractionHandler
  *
- * Listens for interaction intents and updates the interaction store.
- * Renders nothing — it's a pure logic component.
+ * Listens for interaction intents and updates the interaction and
+ * camera stores. Renders nothing — it's a pure logic component.
  *
- * On END_DRAG, this handler reads the current zone state and
- * decides whether the release was inside the zone, near the zone,
- * or never approached. The decision is stored in the interaction
- * store for TaskNode to read.
+ * On END_DRAG, reads the current zone state and decides whether
+ * the release was inside the zone, near the zone, or never
+ * approached. On FOCUS_NODE, reads the node's settled position
+ * and moves the camera to it. On CANCEL, returns the camera to
+ * orbit and clears the focus target.
  */
 
 import { useCallback } from 'react';
 
 import { useInteractionStore } from '@/state/interaction';
+import { useCameraStore } from '@/state/camera';
 import type { ZoneState } from '@/state/interaction';
 
 import type { InteractionIntent } from './intents';
 import { useDrag } from './useDrag';
 import { useIntents } from './useIntent';
 
-/**
- * Given the zone state at the moment of release, decide what the
- * release means.
- *
- *   valid-release           → enter-completing (Task 9 stops here;
- *                             7.6 will run the dissolve)
- *   near / approaching      → spring-back
- *   available / hidden      → commit (free placement)
- *   completing / recovery   → commit (defensive; shouldn't happen)
- */
-function decideRelease(zoneState: ZoneState): 'commit' | 'spring-back' | 'enter-completing' {
+function decideRelease(
+  zoneState: ZoneState,
+): 'commit' | 'spring-back' | 'enter-completing' {
   if (zoneState === 'valid-release') return 'enter-completing';
   if (zoneState === 'near' || zoneState === 'approaching') return 'spring-back';
   return 'commit';
 }
 
-/**
- * The intent handler. Mount once, inside the Canvas.
- */
 export function InteractionHandler() {
   const selectNode = useInteractionStore((s) => s.selectNode);
   const deselectNode = useInteractionStore((s) => s.deselectNode);
@@ -46,6 +37,9 @@ export function InteractionHandler() {
   const beginDrag = useInteractionStore((s) => s.beginDrag);
   const updateDrag = useInteractionStore((s) => s.updateDrag);
   const endDrag = useInteractionStore((s) => s.endDrag);
+
+  const setCameraState = useCameraStore((s) => s.setState);
+  const setFocusTarget = useCameraStore((s) => s.setFocusTarget);
 
   useDrag();
 
@@ -76,6 +70,22 @@ export function InteractionHandler() {
           endDrag(decision);
           break;
         }
+        case 'FOCUS_NODE': {
+          const settled =
+            useInteractionStore.getState().nodeSettledPositions[
+              intent.nodeId
+            ];
+          if (settled) {
+            setFocusTarget(settled);
+            setCameraState('focus');
+          }
+          break;
+        }
+        case 'CANCEL': {
+          setFocusTarget(null);
+          setCameraState('orbit');
+          break;
+        }
         default:
           break;
       }
@@ -88,6 +98,8 @@ export function InteractionHandler() {
       beginDrag,
       updateDrag,
       endDrag,
+      setCameraState,
+      setFocusTarget,
     ],
   );
 
