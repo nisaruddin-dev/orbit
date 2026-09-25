@@ -11,9 +11,10 @@
  * TaskNode reads it from the store and writes to it on commit and
  * enter-completing.
  *
- * Double-clicking a node dispatches FOCUS_NODE, which the
- * InteractionHandler routes to the camera store. The camera moves
- * to the node; the edit panel is a later task (7.5c).
+ * When the task's ring changes (via the edit panel), the node
+ * animates radially from its current radius to the new ring's
+ * radius over 0.8 seconds, keeping its current angle. The new
+ * position is written to the store when the animation completes.
  *
  * All per-frame position motion happens imperatively in useFrame,
  * via the group ref.
@@ -29,6 +30,7 @@ import type { ThreeEvent } from '@react-three/fiber';
 import { ACCENT, SPATIAL } from '@/design';
 import { dispatchIntent } from '@/input';
 import { useInteractionStore } from '@/state/interaction';
+import type { TaskRing } from '@orbit/shared';
 
 type TaskPriority = 0 | 1 | 2 | 3;
 
@@ -39,14 +41,39 @@ const PRIORITY_COLORS: Record<TaskPriority, string> = {
   3: ACCENT.urgent,
 };
 
+/** Radius for each ring, from SPATIAL tokens. */
+const RING_RADII: Record<TaskRing, number> = {
+  today: SPATIAL.ringTodayRadius,
+  week: SPATIAL.ringWeekRadius,
+  someday: SPATIAL.ringSomedayRadius,
+};
+
+/** Duration of the radial ring-change animation, in seconds. */
+const RING_CHANGE_DURATION = 0.8;
+
+/**
+ * Cubic ease-out for the ring change. Fast start, slow finish —
+ * the node decelerates into the new orbit.
+ */
+function ringChangeEase(t: number): number {
+  return 1 - Math.pow(1 - t, 3);
+}
+
 interface TaskNodeProps {
   id: string;
   priority: TaskPriority;
   position: [number, number, number];
   title: string;
+  ring: TaskRing;
 }
 
-export function TaskNode({ id, priority, position, title }: TaskNodeProps) {
+export function TaskNode({
+  id,
+  priority,
+  position,
+  title,
+  ring,
+}: TaskNodeProps) {
   const groupRef = useRef<Group>(null);
   const ringRef = useRef<Mesh>(null);
 
@@ -74,17 +101,68 @@ export function TaskNode({ id, priority, position, title }: TaskNodeProps) {
     elapsed: number;
     duration: number;
   } | null>(null);
-
   const springTargetRef = useRef<[number, number, number] | null>(null);
+
+  /**
+   * Ring-change animation. When non-null, the node animates from
+   * `fromPosition` to `toPosition` over `duration` seconds.
+   */
+  const ringChangeRef = useRef<{
+    fromPosition: [number, number, number];
+    toPosition: [number, number, number];
+    elapsed: number;
+    duration: number;
+  } | null>(null);
 
   const lastDragPositionRef = useRef<[number, number, number] | null>(null);
   const wasDraggedRef = useRef(false);
+
+  // Track the previous ring so we can detect a change.
+  const prevRingRef = useRef<TaskRing>(ring);
 
   useEffect(() => {
     if (isDragged && dragPosition) {
       lastDragPositionRef.current = dragPosition;
     }
   }, [isDragged, dragPosition]);
+
+  // Detect ring change and start a radial animation.
+  useEffect(() => {
+    const prevRing = prevRingRef.current;
+    if (prevRing === ring) return;
+
+    // Compute the new radius.
+    const newRadius = RING_RADII[ring];
+
+    // The current position defines the angle. Preserve the angle,
+    // change the radius.
+    const currentPos = settledPosition;
+    const [cx, cy, cz] = currentPos;
+    const currentRadius = Math.sqrt(cx * cx + cz * cz);
+
+    let newX: number;
+    let newZ: number;
+    if (currentRadius < 0.0001) {
+      // Node at origin (unusual). Place at angle 0 on the new ring.
+      newX = newRadius;
+      newZ = 0;
+    } else {
+      const scale = newRadius / currentRadius;
+      newX = cx * scale;
+      newZ = cz * scale;
+    }
+
+    const toPosition: [number, number, number] = [newX, cy, newZ];
+
+    ringChangeRef.current = {
+      fromPosition: currentPos,
+      toPosition,
+      elapsed: 0,
+      duration: RING_CHANGE_DURATION,
+    };
+
+    prevRingRef.current = ring;
+  }, [ring, settledPosition]);
 
   useEffect(() => {
     if (wasDraggedRef.current && !isDragged) {
@@ -163,10 +241,34 @@ export function TaskNode({ id, priority, position, title }: TaskNodeProps) {
     let targetZ: number;
 
     if (isDragged && dragPosition) {
+      // Dragging overrides everything.
       targetX = dragPosition[0];
       targetY = dragPosition[1];
       targetZ = dragPosition[2];
+    } else if (ringChangeRef.current) {
+      // Ring change animation.
+      const anim = ringChangeRef.current;
+      anim.elapsed += delta;
+      const t = Math.min(anim.elapsed / anim.duration, 1.0);
+      const eased = ringChangeEase(t);
+
+      targetX =
+        anim.fromPosition[0] +
+        (anim.toPosition[0] - anim.fromPosition[0]) * eased;
+      targetY =
+        anim.fromPosition[1] +
+        (anim.toPosition[1] - anim.fromPosition[1]) * eased;
+      targetZ =
+        anim.fromPosition[2] +
+        (anim.toPosition[2] - anim.fromPosition[2]) * eased;
+
+      if (anim.elapsed >= anim.duration) {
+        // Commit the new position to the store.
+        setNodeSettledPosition(id, anim.toPosition);
+        ringChangeRef.current = null;
+      }
     } else if (springRef.current && springTargetRef.current) {
+      // Spring-back animation.
       const spring = springRef.current;
       const target = springTargetRef.current;
       spring.elapsed += delta;
@@ -197,10 +299,10 @@ export function TaskNode({ id, priority, position, title }: TaskNodeProps) {
       group.position.set(targetX, targetY, targetZ);
     }
 
-    const ring = ringRef.current;
-    if (ring) {
+    const ringMesh = ringRef.current;
+    if (ringMesh) {
       const speed = isDragged ? 0.8 : isSelected ? 0.4 : 0.1;
-      ring.rotation.z += speed * delta;
+      ringMesh.rotation.z += speed * delta;
     }
 
     const targetGlow = isDragged

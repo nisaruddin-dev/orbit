@@ -8,7 +8,6 @@
 
 import { useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
-import './App.css';
 
 import { ChoreographyTicker } from '@/choreography';
 import { CameraRig, useCameraKeyboard } from '@/camera';
@@ -29,6 +28,8 @@ import {
 import { useInteractionStore } from '@/state/interaction';
 import { useTaskStore } from '@/state/tasks';
 import { EditPanel, EditPanelTracker } from '@/ui/EditPanel';
+
+import './App.css';
 
 export default function App() {
   useCameraKeyboard();
@@ -87,6 +88,7 @@ export default function App() {
               priority={task.priority}
               position={[x, 0, z]}
               title={task.title}
+              ring={task.ring}
             />
           );
         })}
