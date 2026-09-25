@@ -8,6 +8,7 @@
 
 import { useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
+import './App.css';
 
 import { ChoreographyTicker } from '@/choreography';
 import { CameraRig, useCameraKeyboard } from '@/camera';
