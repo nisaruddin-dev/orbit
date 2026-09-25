@@ -2,7 +2,8 @@
  * Orbit — App component styles.
  *
  * The App is a full-screen 3D canvas. It fills the #root flex
- * container.
+ * container. The edit panel is an HTML overlay positioned above
+ * the canvas.
  */
 
 .app {
@@ -11,6 +12,7 @@
   position: relative;
   overflow: hidden;
 }
+
 /* ---------- Edit panel ---------- */
 
 .edit-panel {
@@ -25,6 +27,14 @@
     inset 0 1px 0 rgba(232, 234, 242, 0.06);
   font-family: Inter, system-ui, sans-serif;
   color: #e8eaf2;
+}
+
+.edit-panel__field {
+  margin-bottom: 14px;
+}
+
+.edit-panel__field:last-child {
+  margin-bottom: 0;
 }
 
 .edit-panel__label {
@@ -53,13 +63,6 @@
   border-color: #7bd3ea;
   background: rgba(232, 234, 242, 0.08);
 }
-.edit-panel__field {
-  margin-bottom: 14px;
-}
-
-.edit-panel__field:last-child {
-  margin-bottom: 0;
-}
 
 .edit-panel__textarea {
   width: 100%;
@@ -81,6 +84,9 @@
   border-color: #7bd3ea;
   background: rgba(232, 234, 242, 0.08);
 }
+
+/* Priority swatches */
+
 .edit-panel__swatch-row {
   display: flex;
   gap: 8px;
@@ -109,6 +115,8 @@
   border-color: #e8eaf2;
   box-shadow: 0 0 0 3px rgba(232, 234, 242, 0.15);
 }
+
+/* Ring buttons */
 
 .edit-panel__button-row {
   display: flex;
@@ -140,4 +148,5 @@
   border-color: #7bd3ea;
   background: rgba(123, 211, 234, 0.12);
   color: #e8eaf2;
+  box-shadow: 0 0 8px rgba(123, 211, 234, 0.25);
 }
