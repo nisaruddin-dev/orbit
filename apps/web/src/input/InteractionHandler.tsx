@@ -1,20 +1,23 @@
 /**
  * @module input/InteractionHandler
  *
- * Listens for interaction intents and updates the interaction and
- * camera stores. Renders nothing — it's a pure logic component.
+ * Listens for interaction intents and updates the interaction,
+ * camera, and editing stores. Renders nothing — it's a pure
+ * logic component.
  *
  * On END_DRAG, reads the current zone state and decides whether
  * the release was inside the zone, near the zone, or never
  * approached. On FOCUS_NODE, reads the node's settled position
- * and moves the camera to it. On CANCEL, returns the camera to
- * orbit and clears the focus target.
+ * and moves the camera to it, and opens the edit panel for it.
+ * On CANCEL, returns the camera to orbit, clears the focus target,
+ * and closes the edit panel.
  */
 
 import { useCallback } from 'react';
 
 import { useInteractionStore } from '@/state/interaction';
 import { useCameraStore } from '@/state/camera';
+import { useEditingStore } from '@/state/editing';
 import type { ZoneState } from '@/state/interaction';
 
 import type { InteractionIntent } from './intents';
@@ -40,6 +43,9 @@ export function InteractionHandler() {
 
   const setCameraState = useCameraStore((s) => s.setState);
   const setFocusTarget = useCameraStore((s) => s.setFocusTarget);
+
+  const openEditor = useEditingStore((s) => s.openEditor);
+  const closeEditor = useEditingStore((s) => s.closeEditor);
 
   useDrag();
 
@@ -78,12 +84,14 @@ export function InteractionHandler() {
           if (settled) {
             setFocusTarget(settled);
             setCameraState('focus');
+            openEditor(intent.nodeId);
           }
           break;
         }
         case 'CANCEL': {
           setFocusTarget(null);
           setCameraState('orbit');
+          closeEditor();
           break;
         }
         default:
@@ -100,6 +108,8 @@ export function InteractionHandler() {
       endDrag,
       setCameraState,
       setFocusTarget,
+      openEditor,
+      closeEditor,
     ],
   );
 

@@ -1,9 +1,9 @@
 /**
  * Orbit — Root application component.
  *
- * Reads tasks from the task store. In 7.5c-1, this replaced the
- * const MOCK_TASKS array that lived here. The store is the single
- * source of truth for task data.
+ * Reads tasks from the task store. Mounts the EditPanelTracker
+ * inside the Canvas (for 3D projection) and the EditPanel outside
+ * the Canvas (for HTML rendering).
  */
 
 import { useEffect } from 'react';
@@ -27,6 +27,7 @@ import {
 } from '@/scene';
 import { useInteractionStore } from '@/state/interaction';
 import { useTaskStore } from '@/state/tasks';
+import { EditPanel, EditPanelTracker } from '@/ui/EditPanel';
 
 export default function App() {
   useCameraKeyboard();
@@ -35,8 +36,6 @@ export default function App() {
   const tasks = useTaskStore((s) => s.tasks);
   const setNodeList = useInteractionStore((s) => s.setNodeList);
 
-  // Register the node list when tasks change. Positions are
-  // derived from the same math the render loop uses.
   useEffect(() => {
     const ids = tasks.map((t) => t.id);
     const positions: Record<string, [number, number, number]> = {};
@@ -96,7 +95,10 @@ export default function App() {
         <Dust />
         <PostProcessing />
         <ChoreographyTicker />
+        <EditPanelTracker />
       </Canvas>
+
+      <EditPanel />
     </div>
   );
 }

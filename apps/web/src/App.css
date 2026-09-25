@@ -11,3 +11,45 @@
   position: relative;
   overflow: hidden;
 }
+/* ---------- Edit panel ---------- */
+
+.edit-panel {
+  background: rgba(30, 34, 51, 0.72);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(232, 234, 242, 0.12);
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(232, 234, 242, 0.06);
+  font-family: Inter, system-ui, sans-serif;
+  color: #e8eaf2;
+}
+
+.edit-panel__label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #a2a8bd;
+  margin-bottom: 6px;
+  letter-spacing: 0.02em;
+}
+
+.edit-panel__input {
+  width: 100%;
+  background: rgba(232, 234, 242, 0.06);
+  border: 1px solid rgba(232, 234, 242, 0.12);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #e8eaf2;
+  font-size: 0.95rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.edit-panel__input:focus {
+  border-color: #7bd3ea;
+  background: rgba(232, 234, 242, 0.08);
+}
