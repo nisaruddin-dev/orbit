@@ -319,11 +319,28 @@ function EditPanelInner({
   if (!screenPos) return null;
 
   const [nodeX, nodeY] = screenPos;
+
+  // Horizontal placement: to the right of the node, unless that
+  // would push the panel off the right edge — then flip to the left.
   const flip = nodeX + PANEL_OFFSET_X + PANEL_WIDTH > window.innerWidth;
   const panelX = flip
     ? nodeX - PANEL_OFFSET_X - PANEL_WIDTH
     : nodeX + PANEL_OFFSET_X;
-  const panelY = nodeY - 100;
+
+  // Vertical placement: vertically centered on the node, but
+  // clamped so the panel never runs off the top or bottom of the
+  // viewport. The estimated panel height is used to keep the
+  // bottom edge inside the window when the node is low on screen.
+  const ESTIMATED_PANEL_HEIGHT = 420;
+  const desiredPanelY = nodeY - ESTIMATED_PANEL_HEIGHT / 2;
+
+  const minPanelY = 16;
+  const maxPanelY = Math.max(
+    minPanelY,
+    window.innerHeight - ESTIMATED_PANEL_HEIGHT - 16,
+  );
+
+  const panelY = Math.min(Math.max(desiredPanelY, minPanelY), maxPanelY);
 
   return (
     <div
