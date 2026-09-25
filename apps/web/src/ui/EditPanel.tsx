@@ -30,6 +30,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
+import type { Camera } from 'three';
 
 import { useEditingStore } from '@/state/editing';
 import { useInteractionStore } from '@/state/interaction';
@@ -45,7 +46,7 @@ const PANEL_WIDTH = 320;
  */
 function worldToScreen(
   world: [number, number, number],
-  camera: THREE.Camera,
+  camera: Camera,
   width: number,
   height: number,
 ): [number, number] | null {
@@ -82,64 +83,55 @@ export function EditPanelTracker() {
 }
 
 /**
- * Outside-Canvas panel. Reads the screen position from the store
- * and renders the HTML.
+ * Props for the inner panel content. The `key` prop on this
+ * component is the task ID, which forces a fresh mount when the
+ * focused task changes — avoiding the setState-in-effect anti-pattern.
  */
-export function EditPanel() {
-  const editingNodeId = useEditingStore((s) => s.editingNodeId);
+interface EditPanelInnerProps {
+  taskId: string;
+  initialTitle: string;
+}
+
+function EditPanelInner({ taskId, initialTitle }: EditPanelInnerProps) {
   const screenPos = useEditingStore((s) => s.screenPos);
   const closeEditor = useEditingStore((s) => s.closeEditor);
   const updateTask = useTaskStore((s) => s.updateTask);
-  const task = useTaskStore((s) =>
-    editingNodeId ? s.tasks.find((t) => t.id === editingNodeId) : undefined,
-  );
 
-  const [titleDraft, setTitleDraft] = useState<string>(task?.title ?? '');
+  const [titleDraft, setTitleDraft] = useState<string>(initialTitle);
   const debounceRef = useRef<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Reset the draft when a different task is opened.
+  // Focus the input on mount.
   useEffect(() => {
-    if (task) setTitleDraft(task.title);
-  }, [task?.id, task]);
-
-  // Focus the input on open.
-  useEffect(() => {
-    if (task && inputRef.current) {
+    if (inputRef.current) {
       inputRef.current.focus();
       inputRef.current.select();
     }
-  }, [task]);
+  }, []);
 
-  // Save on blur.
   const handleBlur = () => {
-    if (!task) return;
-    if (titleDraft !== task.title) {
-      updateTask(task.id, 'title', titleDraft);
+    if (titleDraft !== initialTitle) {
+      updateTask(taskId, 'title', titleDraft);
     }
   };
 
-  // Debounced save while typing.
   const handleChange = (value: string) => {
     setTitleDraft(value);
     if (debounceRef.current !== null) {
       window.clearTimeout(debounceRef.current);
     }
     debounceRef.current = window.setTimeout(() => {
-      if (task && value !== task.title) {
-        updateTask(task.id, 'title', value);
-      }
+      updateTask(taskId, 'title', value);
       debounceRef.current = null;
     }, AUTOSAVE_DEBOUNCE_MS);
   };
 
   // Esc closes the panel and flushes any pending save.
   useEffect(() => {
-    if (!task) return;
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (titleDraft !== task.title) {
-          updateTask(task.id, 'title', titleDraft);
+        if (titleDraft !== initialTitle) {
+          updateTask(taskId, 'title', titleDraft);
         }
         closeEditor();
         dispatchIntent({ type: 'CANCEL' });
@@ -149,7 +141,7 @@ export function EditPanel() {
     return () => {
       window.removeEventListener('keydown', handleKey);
     };
-  }, [task, titleDraft, updateTask, closeEditor]);
+  }, [taskId, titleDraft, initialTitle, updateTask, closeEditor]);
 
   // Cleanup debounce on unmount.
   useEffect(() => {
@@ -160,7 +152,7 @@ export function EditPanel() {
     };
   }, []);
 
-  if (!task || !screenPos) return null;
+  if (!screenPos) return null;
 
   const [nodeX, nodeY] = screenPos;
   const flip = nodeX + PANEL_OFFSET_X + PANEL_WIDTH > window.innerWidth;
@@ -197,5 +189,27 @@ export function EditPanel() {
         />
       </div>
     </div>
+  );
+}
+
+/**
+ * Outside-Canvas panel. Reads the editing node ID and the task
+ * from the stores, then renders the inner panel with a `key` so
+ * a task change forces a fresh mount.
+ */
+export function EditPanel() {
+  const editingNodeId = useEditingStore((s) => s.editingNodeId);
+  const task = useTaskStore((s) =>
+    editingNodeId ? s.tasks.find((t) => t.id === editingNodeId) : undefined,
+  );
+
+  if (!editingNodeId || !task) return null;
+
+  return (
+    <EditPanelInner
+      key={task.id}
+      taskId={task.id}
+      initialTitle={task.title}
+    />
   );
 }
