@@ -7,11 +7,13 @@
  * Reads the eight-state zone machine from the interaction store
  * and plays the appropriate choreography.
  *
- * In Task 9 (this delivery), a new state `completing` is added:
- * when a node is released inside the zone, the zone plays a
- * one-shot flash and then waits for 7.6 to run the dissolve.
+ * Reduced motion (UI/UX §90):
+ *   - `zone.appear` plays with a shorter, fade-only variant
+ *   - `zone.pulse` does not loop; the zone holds at a static intensity
+ *   - `zone.recover` fades quickly
  *
- * The dissolve itself is NOT in this component. 7.6 will own it.
+ * The `completing` state holds the zone at maximum intensity until
+ * 7.6 runs the dissolve.
  */
 
 import { useEffect, useMemo, useRef } from 'react';
@@ -20,13 +22,9 @@ import { Color } from 'three';
 import type { Mesh, MeshStandardMaterial } from 'three';
 
 import { ACCENT, SPATIAL } from '@/design';
-import {
-  play,
-  subscribe,
-  isPlaying,
-  cancel,
-} from '@/choreography';
+import { play, subscribe, isPlaying, cancel } from '@/choreography';
 import { useInteractionStore } from '@/state/interaction';
+import { usePreferenceStore } from '@/state/preferenceStore';
 
 /**
  * A flat torus representing the zone.
@@ -39,14 +37,11 @@ export function CompletionZone() {
   const zoneState = useInteractionStore((s) => s.zoneState);
   const zoneProximity = useInteractionStore((s) => s.zoneProximity);
   const setZoneState = useInteractionStore((s) => s.setZoneState);
+  const reducedMotion = usePreferenceStore((s) => s.prefersReducedMotion);
 
-  // Values driven by the choreography engine.
   const opacityRef = useRef(0.0);
   const emissiveRef = useRef(0.6);
   const scaleRef = useRef(1.0);
-
-  // Flash intensity during `completing`. Ramps up and stays high.
-  const flashRef = useRef(0);
 
   useEffect(() => {
     const unsubscribe = subscribe((target, property, value) => {
@@ -66,7 +61,6 @@ export function CompletionZone() {
       cancel('zone.pulse');
       cancel('zone.recover');
       opacityRef.current = 0;
-      flashRef.current = 0;
       return;
     }
 
@@ -83,7 +77,6 @@ export function CompletionZone() {
     }
 
     if (zoneState === 'completing') {
-      // Hold at full intensity. 7.6 will run the dissolve.
       cancel('zone.appear');
       cancel('zone.pulse');
       cancel('zone.recover');
@@ -105,13 +98,18 @@ export function CompletionZone() {
       return;
     }
 
-    // States: available, approaching, near, valid-release
+    // available, approaching, near, valid-release
     cancel('zone.appear');
     cancel('zone.recover');
-    if (!isPlaying('zone.pulse')) {
+    if (!reducedMotion && !isPlaying('zone.pulse')) {
       void play('zone.pulse');
     }
-  }, [zoneState, setZoneState]);
+    if (reducedMotion) {
+      // Static glow. No pulse.
+      cancel('zone.pulse');
+      emissiveRef.current = 0.6;
+    }
+  }, [zoneState, setZoneState, reducedMotion]);
 
   useFrame(() => {
     const mesh = meshRef.current;

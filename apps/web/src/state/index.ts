@@ -1,14 +1,12 @@
 /**
  * @module state
  *
- * Client-side application state, managed via Zustand stores.
- *
- * Contains:
- *   - task store (local projection of server tasks)
- *   - scene store (camera, focus, hover, interaction)
- *   - ui store (toasts, undo, preferences)
- *
- * Populated in Chunk 5 (Task Node) and Chunk 12 (Local-First & Sync).
+ * Public exports for all Zustand stores.
  */
 
-export {};
+export { useCameraStore } from './camera';
+export { useInteractionStore } from './interaction';
+export { usePreferenceStore } from './preferenceStore';
+
+export type { ZoneState, ReleaseDecision } from './interaction';
+export { ZONE_BANDS, distanceToZone } from './interaction';
