@@ -116,8 +116,7 @@ interface TaskStore {
   tasks: Task[];
 
   /**
-   * Replace the entire task list. Used during initial registration
-   * and, in Part 8, during reconciliation with the server.
+   * Replace the entire task list.
    */
   setTasks: (tasks: Task[]) => void;
 
@@ -133,8 +132,7 @@ interface TaskStore {
   ) => Task | null;
 
   /**
-   * Get a task by ID. Convenience for reading without subscribing
-   * to the whole list.
+   * Get a task by ID.
    */
   getTask: (taskId: string) => Task | undefined;
 }
@@ -148,19 +146,22 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
 
   updateTask: (taskId, field, value) => {
     const existing = get().tasks;
-    let updated: Task | null = null;
-    const next = existing.map((task) => {
-      if (task.id !== taskId) return task;
-      updated = {
-        ...task,
-        [field]: value,
-        updatedAt: new Date().toISOString(),
-      } as Task;
-      return updated;
-    });
-    if (updated) {
-      set({ tasks: next });
-    }
+    const index = existing.findIndex((task) => task.id === taskId);
+    if (index === -1) return null;
+
+    const current = existing[index];
+    if (!current) return null;
+
+    const updated: Task = {
+      ...current,
+      [field]: value,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const next = existing.slice();
+    next[index] = updated;
+    set({ tasks: next });
+
     return updated;
   },
 
