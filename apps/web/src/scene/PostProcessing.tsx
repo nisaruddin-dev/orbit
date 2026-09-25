@@ -33,8 +33,9 @@ import { BlendFunction } from 'postprocessing';
 
 export function PostProcessing() {
   return (
-<EffectComposer>
-     <Bloom
+
+<EffectComposer multisampling={0}>
+  <Bloom
   intensity={0.35}
   luminanceThreshold={0.85}
   luminanceSmoothing={0.6}

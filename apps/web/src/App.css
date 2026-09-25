@@ -1,9 +1,5 @@
 /**
  * Orbit — App component styles.
- *
- * The App is a full-screen 3D canvas. It fills the #root flex
- * container. The edit panel is an HTML overlay positioned above
- * the canvas.
  */
 
 .app {
@@ -15,18 +11,29 @@
 
 /* ---------- Edit panel ---------- */
 
+.edit-panel-root {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+.edit-panel-root > * {
+  pointer-events: auto;
+}
+
 .edit-panel {
-  background: rgba(30, 34, 51, 0.72);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  border: 1px solid rgba(232, 234, 242, 0.12);
+  background: rgba(30, 34, 51, 0.94);
+  border: 1px solid rgba(232, 234, 242, 0.14);
   border-radius: 12px;
   padding: 16px 18px;
   box-shadow:
-    0 4px 24px rgba(0, 0, 0, 0.35),
+    0 4px 24px rgba(0, 0, 0, 0.5),
     inset 0 1px 0 rgba(232, 234, 242, 0.06);
   font-family: Inter, system-ui, sans-serif;
   color: #e8eaf2;
+  width: 320px;
+  box-sizing: border-box;
 }
 
 .edit-panel__field {
@@ -57,6 +64,7 @@
   font-family: inherit;
   outline: none;
   transition: border-color 0.2s ease, background 0.2s ease;
+  box-sizing: border-box;
 }
 
 .edit-panel__input:focus {
@@ -78,14 +86,13 @@
   outline: none;
   resize: vertical;
   transition: border-color 0.2s ease, background 0.2s ease;
+  box-sizing: border-box;
 }
 
 .edit-panel__textarea:focus {
   border-color: #7bd3ea;
   background: rgba(232, 234, 242, 0.08);
 }
-
-/* Priority swatches */
 
 .edit-panel__swatch-row {
   display: flex;
@@ -115,8 +122,6 @@
   border-color: #e8eaf2;
   box-shadow: 0 0 0 3px rgba(232, 234, 242, 0.15);
 }
-
-/* Ring buttons */
 
 .edit-panel__button-row {
   display: flex;
@@ -150,14 +155,11 @@
   color: #e8eaf2;
   box-shadow: 0 0 8px rgba(123, 211, 234, 0.25);
 }
-/* Date input */
 
 .edit-panel__input--date {
   color-scheme: dark;
   cursor: pointer;
 }
-
-/* Recurrence row: four buttons, smaller text */
 
 .edit-panel__button-row--four .edit-panel__button {
   font-size: 0.78rem;

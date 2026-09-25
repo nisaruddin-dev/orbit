@@ -6,8 +6,11 @@
  *
  * The panel has two parts:
  *   - `EditPanelTracker` runs INSIDE the Canvas. It projects the
- *     focused node's world position to screen coordinates every
- *     frame and writes them to the editing store.
+ *     focused node's world position to screen coordinates and
+ *     writes them to the editing store. Writes are throttled:
+ *     the store is only updated when the projected position
+ *     changes by more than one pixel, so a still camera causes
+ *     no writes at all.
  *   - `EditPanel` runs OUTSIDE the Canvas. It reads the screen
  *     position from the store and renders the HTML panel.
  *
@@ -18,9 +21,6 @@
  *   - text fields: on blur, after 800ms of no typing, on Esc
  *   - choice fields: immediately on click
  *   - date field: on change
- *
- * Ring movement (the node physically moving to the new ring) is
- * deferred to a later task. This task only writes the value.
  *
  * Desktop only. Mobile is not a target for this build.
  *
@@ -44,6 +44,14 @@ import type { TaskPriority, TaskRing, TaskRecurrence } from '@orbit/shared';
 const AUTOSAVE_DEBOUNCE_MS = 800;
 const PANEL_OFFSET_X = 40;
 const PANEL_WIDTH = 320;
+
+/**
+ * Minimum screen-pixel change required to push a new screen
+ * position to the store. This throttles the store writes: a still
+ * camera produces no writes, a moving camera produces a few per
+ * second instead of 60.
+ */
+const SCREEN_POS_EPSILON_PX = 1.5;
 
 /** Priority values in display order. */
 const PRIORITY_VALUES: TaskPriority[] = [0, 1, 2, 3];
@@ -98,13 +106,11 @@ function recurrenceLabel(value: RecurrenceOption): string {
 
 /**
  * Converts a Task.dueAt string to a value suitable for an
- * <input type="date">. Returns '' if the value is null or invalid.
+ * <input type="date">.
  */
 function dueAtToInputValue(dueAt: string | null): string {
   if (!dueAt) return '';
-  // Already an ISO date or datetime. Take the YYYY-MM-DD part.
-  const datePart = dueAt.slice(0, 10);
-  return datePart;
+  return dueAt.slice(0, 10);
 }
 
 /**
@@ -113,8 +119,6 @@ function dueAtToInputValue(dueAt: string | null): string {
  */
 function inputValueToDueAt(value: string): string | null {
   if (!value) return null;
-  // value is already YYYY-MM-DD. Append time to make a full ISO
-  // string, at local midnight.
   return new Date(`${value}T00:00:00`).toISOString();
 }
 
@@ -136,7 +140,9 @@ function worldToScreen(
 }
 
 /**
- * Inside-Canvas tracker.
+ * Inside-Canvas tracker. Runs every frame, but only writes to the
+ * store when the projected screen position has changed by more
+ * than SCREEN_POS_EPSILON_PX. A still camera causes no writes.
  */
 export function EditPanelTracker() {
   const editingNodeId = useEditingStore((s) => s.editingNodeId);
@@ -144,13 +150,58 @@ export function EditPanelTracker() {
   const nodeSettledPositions = useInteractionStore(
     (s) => s.nodeSettledPositions,
   );
+  const tasks = useTaskStore((s) => s.tasks);
   const { camera, size } = useThree();
 
+  const lastWrittenRef = useRef<[number, number] | null>(null);
+
   useFrame(() => {
-    if (!editingNodeId) return;
-    const world = nodeSettledPositions[editingNodeId];
+    if (!editingNodeId) {
+      if (lastWrittenRef.current !== null) {
+        lastWrittenRef.current = null;
+        setScreenPos(null);
+      }
+      return;
+    }
+
+    // Prefer the settled position from the interaction store.
+    // Fall back to computing it from the task's orbit fields.
+    let world = nodeSettledPositions[editingNodeId];
+    if (!world) {
+      const task = tasks.find((t) => t.id === editingNodeId);
+      const angle = task?.orbitAngle;
+      const radius = task?.orbitRadius;
+      if (angle !== null && angle !== undefined && radius !== null && radius !== undefined) {
+        world = [
+          Math.cos(angle) * radius,
+          0,
+          Math.sin(angle) * radius,
+        ];
+      }
+    }
     if (!world) return;
+
     const projected = worldToScreen(world, camera, size.width, size.height);
+    if (!projected) {
+      // Point is behind the camera. Clear the screen position so
+      // the panel hides rather than sticking at the last value.
+      if (lastWrittenRef.current !== null) {
+        lastWrittenRef.current = null;
+        setScreenPos(null);
+      }
+      return;
+    }
+
+    const last = lastWrittenRef.current;
+    if (
+      last &&
+      Math.abs(last[0] - projected[0]) < SCREEN_POS_EPSILON_PX &&
+      Math.abs(last[1] - projected[1]) < SCREEN_POS_EPSILON_PX
+    ) {
+      return;
+    }
+
+    lastWrittenRef.current = projected;
     setScreenPos(projected);
   });
 
@@ -280,7 +331,6 @@ function EditPanelInner({
     }
   };
 
-  // Esc closes the panel and flushes any pending saves.
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -320,17 +370,11 @@ function EditPanelInner({
 
   const [nodeX, nodeY] = screenPos;
 
-  // Horizontal placement: to the right of the node, unless that
-  // would push the panel off the right edge — then flip to the left.
   const flip = nodeX + PANEL_OFFSET_X + PANEL_WIDTH > window.innerWidth;
   const panelX = flip
     ? nodeX - PANEL_OFFSET_X - PANEL_WIDTH
     : nodeX + PANEL_OFFSET_X;
 
-  // Vertical placement: vertically centered on the node, but
-  // clamped so the panel never runs off the top or bottom of the
-  // viewport. The estimated panel height is used to keep the
-  // bottom edge inside the window when the node is low on screen.
   const ESTIMATED_PANEL_HEIGHT = 420;
   const desiredPanelY = nodeY - ESTIMATED_PANEL_HEIGHT / 2;
 
@@ -500,9 +544,6 @@ function EditPanelInner({
   );
 }
 
-/**
- * Outside-Canvas panel.
- */
 export function EditPanel() {
   const editingNodeId = useEditingStore((s) => s.editingNodeId);
   const task = useTaskStore((s) =>
@@ -512,11 +553,13 @@ export function EditPanel() {
   if (!editingNodeId || !task) return null;
 
   return (
-    <EditPanelInner
-      key={task.id}
-      taskId={task.id}
-      initialTitle={task.title}
-      initialNotes={task.notes}
-    />
+    <div className="edit-panel-root">
+      <EditPanelInner
+        key={task.id}
+        taskId={task.id}
+        initialTitle={task.title}
+        initialNotes={task.notes}
+      />
+    </div>
   );
 }
