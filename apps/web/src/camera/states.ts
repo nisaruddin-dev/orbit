@@ -42,8 +42,8 @@ export interface CameraPose {
  */
 export const CAMERA_POSES: Record<CameraState, CameraPose> = {
   orbit: {
-    position: [0, 6, 12],
-    target: [0, 2, 0],
+    position: [0, 10, 18],
+    target: [0, 0, 0],
     fov: 45,
   },
   focus: {

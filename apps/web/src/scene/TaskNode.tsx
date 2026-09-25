@@ -288,7 +288,8 @@ export function TaskNode({ id, priority, position, title }: TaskNodeProps) {
           color="#E8EAF2"
           anchorX="center"
           anchorY="bottom"
-          outlineWidth={0}
+          outlineWidth={0.008}
+          outlineColor="#0E0F16"
           maxWidth={3}
         >
           {title}
