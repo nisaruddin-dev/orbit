@@ -11,11 +11,11 @@
  *   - `EditPanel` runs OUTSIDE the Canvas. It reads the screen
  *     position from the store and renders the HTML panel.
  *
- * The store is the bridge. No component reads R3F context from
- * both sides.
- *
- * In 7.5c-2, only the title field is editable. Notes, priority,
- * ring, due date, and recurrence come in 7.5c-3 and later.
+ * Fields:
+ *   7.5c-2: title
+ *   7.5c-3a: notes (this task)
+ *   7.5c-3b: priority, ring
+ *   7.5c-3c: due date, recurrence
  *
  * Autosave:
  *   - on input blur
@@ -83,25 +83,40 @@ export function EditPanelTracker() {
 }
 
 /**
- * Props for the inner panel content. The `key` prop on this
- * component is the task ID, which forces a fresh mount when the
- * focused task changes — avoiding the setState-in-effect anti-pattern.
+ * Props for the inner panel content.
  */
 interface EditPanelInnerProps {
   taskId: string;
   initialTitle: string;
+  initialNotes: string;
 }
 
-function EditPanelInner({ taskId, initialTitle }: EditPanelInnerProps) {
+function EditPanelInner({
+  taskId,
+  initialTitle,
+  initialNotes,
+}: EditPanelInnerProps) {
   const screenPos = useEditingStore((s) => s.screenPos);
   const closeEditor = useEditingStore((s) => s.closeEditor);
   const updateTask = useTaskStore((s) => s.updateTask);
 
+  // Read the live task so we can compare drafts against the
+  // current stored value, not a stale prop.
+  const currentTitle = useTaskStore(
+    (s) => s.tasks.find((t) => t.id === taskId)?.title ?? initialTitle,
+  );
+  const currentNotes = useTaskStore(
+    (s) => s.tasks.find((t) => t.id === taskId)?.notes ?? initialNotes,
+  );
+
   const [titleDraft, setTitleDraft] = useState<string>(initialTitle);
-  const debounceRef = useRef<number | null>(null);
+  const [notesDraft, setNotesDraft] = useState<string>(initialNotes);
+
+  const titleDebounceRef = useRef<number | null>(null);
+  const notesDebounceRef = useRef<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Focus the input on mount.
+  // Focus the title input on mount.
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.focus();
@@ -109,30 +124,70 @@ function EditPanelInner({ taskId, initialTitle }: EditPanelInnerProps) {
     }
   }, []);
 
-  const handleBlur = () => {
-    if (titleDraft !== initialTitle) {
-      updateTask(taskId, 'title', titleDraft);
+  const saveTitle = (value: string) => {
+    if (value !== currentTitle) {
+      updateTask(taskId, 'title', value);
     }
   };
 
-  const handleChange = (value: string) => {
-    setTitleDraft(value);
-    if (debounceRef.current !== null) {
-      window.clearTimeout(debounceRef.current);
+  const saveNotes = (value: string) => {
+    if (value !== currentNotes) {
+      updateTask(taskId, 'notes', value);
     }
-    debounceRef.current = window.setTimeout(() => {
-      updateTask(taskId, 'title', value);
-      debounceRef.current = null;
+  };
+
+  const handleTitleChange = (value: string) => {
+    setTitleDraft(value);
+    if (titleDebounceRef.current !== null) {
+      window.clearTimeout(titleDebounceRef.current);
+    }
+    titleDebounceRef.current = window.setTimeout(() => {
+      saveTitle(value);
+      titleDebounceRef.current = null;
     }, AUTOSAVE_DEBOUNCE_MS);
   };
 
-  // Esc closes the panel and flushes any pending save.
+  const handleNotesChange = (value: string) => {
+    setNotesDraft(value);
+    if (notesDebounceRef.current !== null) {
+      window.clearTimeout(notesDebounceRef.current);
+    }
+    notesDebounceRef.current = window.setTimeout(() => {
+      saveNotes(value);
+      notesDebounceRef.current = null;
+    }, AUTOSAVE_DEBOUNCE_MS);
+  };
+
+  const handleTitleBlur = () => {
+    if (titleDebounceRef.current !== null) {
+      window.clearTimeout(titleDebounceRef.current);
+      titleDebounceRef.current = null;
+    }
+    saveTitle(titleDraft);
+  };
+
+  const handleNotesBlur = () => {
+    if (notesDebounceRef.current !== null) {
+      window.clearTimeout(notesDebounceRef.current);
+      notesDebounceRef.current = null;
+    }
+    saveNotes(notesDraft);
+  };
+
+  // Esc closes the panel and flushes any pending saves.
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (titleDraft !== initialTitle) {
-          updateTask(taskId, 'title', titleDraft);
+        if (titleDebounceRef.current !== null) {
+          window.clearTimeout(titleDebounceRef.current);
+          titleDebounceRef.current = null;
         }
+        if (notesDebounceRef.current !== null) {
+          window.clearTimeout(notesDebounceRef.current);
+          notesDebounceRef.current = null;
+        }
+        saveTitle(titleDraft);
+        saveNotes(notesDraft);
         closeEditor();
         dispatchIntent({ type: 'CANCEL' });
       }
@@ -141,13 +196,17 @@ function EditPanelInner({ taskId, initialTitle }: EditPanelInnerProps) {
     return () => {
       window.removeEventListener('keydown', handleKey);
     };
-  }, [taskId, titleDraft, initialTitle, updateTask, closeEditor]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskId, titleDraft, notesDraft, currentTitle, currentNotes]);
 
-  // Cleanup debounce on unmount.
+  // Cleanup debounces on unmount.
   useEffect(() => {
     return () => {
-      if (debounceRef.current !== null) {
-        window.clearTimeout(debounceRef.current);
+      if (titleDebounceRef.current !== null) {
+        window.clearTimeout(titleDebounceRef.current);
+      }
+      if (notesDebounceRef.current !== null) {
+        window.clearTimeout(notesDebounceRef.current);
       }
     };
   }, []);
@@ -159,7 +218,7 @@ function EditPanelInner({ taskId, initialTitle }: EditPanelInnerProps) {
   const panelX = flip
     ? nodeX - PANEL_OFFSET_X - PANEL_WIDTH
     : nodeX + PANEL_OFFSET_X;
-  const panelY = nodeY - 40;
+  const panelY = nodeY - 60;
 
   return (
     <div
@@ -172,21 +231,40 @@ function EditPanelInner({ taskId, initialTitle }: EditPanelInnerProps) {
       }}
     >
       <div className="edit-panel">
-        <label className="edit-panel__label" htmlFor="edit-panel-title">
-          Title
-        </label>
-        <input
-          id="edit-panel-title"
-          ref={inputRef}
-          className="edit-panel__input"
-          type="text"
-          value={titleDraft}
-          onChange={(e) => {
-            handleChange(e.target.value);
-          }}
-          onBlur={handleBlur}
-          maxLength={200}
-        />
+        <div className="edit-panel__field">
+          <label className="edit-panel__label" htmlFor="edit-panel-title">
+            Title
+          </label>
+          <input
+            id="edit-panel-title"
+            ref={inputRef}
+            className="edit-panel__input"
+            type="text"
+            value={titleDraft}
+            onChange={(e) => {
+              handleTitleChange(e.target.value);
+            }}
+            onBlur={handleTitleBlur}
+            maxLength={200}
+          />
+        </div>
+
+        <div className="edit-panel__field">
+          <label className="edit-panel__label" htmlFor="edit-panel-notes">
+            Notes
+          </label>
+          <textarea
+            id="edit-panel-notes"
+            className="edit-panel__textarea"
+            value={notesDraft}
+            onChange={(e) => {
+              handleNotesChange(e.target.value);
+            }}
+            onBlur={handleNotesBlur}
+            rows={4}
+            maxLength={10000}
+          />
+        </div>
       </div>
     </div>
   );
@@ -210,6 +288,7 @@ export function EditPanel() {
       key={task.id}
       taskId={task.id}
       initialTitle={task.title}
+      initialNotes={task.notes}
     />
   );
 }
