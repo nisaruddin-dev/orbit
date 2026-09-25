@@ -129,10 +129,14 @@ function stateFromDistance(distance: number): ZoneState {
 export function distanceToZone(
   worldPosition: readonly [number, number, number],
 ): number {
+  // The zone is a destination on the drag plane. Drag happens on
+  // the ground plane (y = 0), and the zone sits below that plane
+  // for visual reasons (y = -1.5). Measuring Y would add a fixed
+  // 1.5 unit offset to every distance, which would make the
+  // valid-release threshold unreachable. Measure in XZ only.
   const dx = worldPosition[0] - ZONE_POSITION[0];
-  const dy = worldPosition[1] - ZONE_POSITION[1];
   const dz = worldPosition[2] - ZONE_POSITION[2];
-  return Math.sqrt(dx * dx + dy * dy + dz * dz);
+  return Math.sqrt(dx * dx + dz * dz);
 }
 
 export const useInteractionStore = create<InteractionStore>((set, get) => ({
