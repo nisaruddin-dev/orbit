@@ -13,18 +13,20 @@
  *
  * Fields:
  *   7.5c-2: title
- *   7.5c-3a: notes (this task)
- *   7.5c-3b: priority, ring
+ *   7.5c-3a: notes
+ *   7.5c-3b: priority, ring (this task)
  *   7.5c-3c: due date, recurrence
  *
  * Autosave:
- *   - on input blur
- *   - after 800ms of no typing
- *   - when the panel closes
+ *   - text fields: on blur, after 800ms of no typing, on Esc
+ *   - choice fields: immediately on click
+ *
+ * Ring movement (the node physically moving to the new ring) is
+ * deferred to a later task. This task only writes the value.
  *
  * Esc closes the panel. Any pending value is saved first.
  *
- * Source: UI/UX §53–§55, §125, TRD §121–§122.
+ * Source: UI/UX §53–§55, §92, §125, TRD §121–§122.
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -32,14 +34,45 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import type { Camera } from 'three';
 
+import { ACCENT } from '@/design';
 import { useEditingStore } from '@/state/editing';
 import { useInteractionStore } from '@/state/interaction';
 import { useTaskStore } from '@/state/tasks';
 import { dispatchIntent } from '@/input';
+import type { TaskPriority, TaskRing } from '@orbit/shared';
 
 const AUTOSAVE_DEBOUNCE_MS = 800;
 const PANEL_OFFSET_X = 40;
 const PANEL_WIDTH = 320;
+
+/** Priority values in display order. */
+const PRIORITY_VALUES: TaskPriority[] = [0, 1, 2, 3];
+
+/** Priority colors, matching TaskNode. */
+const PRIORITY_COLORS: Record<TaskPriority, string> = {
+  0: ACCENT.dormant,
+  1: ACCENT.active,
+  2: ACCENT.focus,
+  3: ACCENT.urgent,
+};
+
+/** Priority labels for accessibility. */
+const PRIORITY_LABELS: Record<TaskPriority, string> = {
+  0: 'Dormant',
+  1: 'Normal',
+  2: 'Important',
+  3: 'High attention',
+};
+
+/** Ring values in display order. */
+const RING_VALUES: TaskRing[] = ['today', 'week', 'someday'];
+
+/** Ring labels. */
+const RING_LABELS: Record<TaskRing, string> = {
+  today: 'Today',
+  week: 'This Week',
+  someday: 'Someday',
+};
 
 /**
  * Projects a world position to screen coordinates.
@@ -59,9 +92,7 @@ function worldToScreen(
 }
 
 /**
- * Inside-Canvas tracker. Runs every frame, projects the focused
- * node's world position to screen coordinates, and writes them
- * to the editing store.
+ * Inside-Canvas tracker.
  */
 export function EditPanelTracker() {
   const editingNodeId = useEditingStore((s) => s.editingNodeId);
@@ -82,9 +113,6 @@ export function EditPanelTracker() {
   return null;
 }
 
-/**
- * Props for the inner panel content.
- */
 interface EditPanelInnerProps {
   taskId: string;
   initialTitle: string;
@@ -100,13 +128,17 @@ function EditPanelInner({
   const closeEditor = useEditingStore((s) => s.closeEditor);
   const updateTask = useTaskStore((s) => s.updateTask);
 
-  // Read the live task so we can compare drafts against the
-  // current stored value, not a stale prop.
   const currentTitle = useTaskStore(
     (s) => s.tasks.find((t) => t.id === taskId)?.title ?? initialTitle,
   );
   const currentNotes = useTaskStore(
     (s) => s.tasks.find((t) => t.id === taskId)?.notes ?? initialNotes,
+  );
+  const currentPriority = useTaskStore(
+    (s) => s.tasks.find((t) => t.id === taskId)?.priority ?? 1,
+  );
+  const currentRing = useTaskStore(
+    (s) => s.tasks.find((t) => t.id === taskId)?.ring ?? 'today',
   );
 
   const [titleDraft, setTitleDraft] = useState<string>(initialTitle);
@@ -116,7 +148,6 @@ function EditPanelInner({
   const notesDebounceRef = useRef<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Focus the title input on mount.
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.focus();
@@ -174,6 +205,18 @@ function EditPanelInner({
     saveNotes(notesDraft);
   };
 
+  const handlePriorityClick = (value: TaskPriority) => {
+    if (value !== currentPriority) {
+      updateTask(taskId, 'priority', value);
+    }
+  };
+
+  const handleRingClick = (value: TaskRing) => {
+    if (value !== currentRing) {
+      updateTask(taskId, 'ring', value);
+    }
+  };
+
   // Esc closes the panel and flushes any pending saves.
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -199,7 +242,6 @@ function EditPanelInner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId, titleDraft, notesDraft, currentTitle, currentNotes]);
 
-  // Cleanup debounces on unmount.
   useEffect(() => {
     return () => {
       if (titleDebounceRef.current !== null) {
@@ -265,15 +307,74 @@ function EditPanelInner({
             maxLength={10000}
           />
         </div>
+
+        <div className="edit-panel__field">
+          <span className="edit-panel__label">Priority</span>
+          <div
+            className="edit-panel__swatch-row"
+            role="group"
+            aria-label="Priority"
+          >
+            {PRIORITY_VALUES.map((value) => {
+              const isActive = value === currentPriority;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  className={
+                    isActive
+                      ? 'edit-panel__swatch edit-panel__swatch--active'
+                      : 'edit-panel__swatch'
+                  }
+                  style={{ backgroundColor: PRIORITY_COLORS[value] }}
+                  aria-pressed={isActive}
+                  aria-label={PRIORITY_LABELS[value]}
+                  title={PRIORITY_LABELS[value]}
+                  onClick={() => {
+                    handlePriorityClick(value);
+                  }}
+                />
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="edit-panel__field">
+          <span className="edit-panel__label">Ring</span>
+          <div
+            className="edit-panel__button-row"
+            role="group"
+            aria-label="Ring"
+          >
+            {RING_VALUES.map((value) => {
+              const isActive = value === currentRing;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  className={
+                    isActive
+                      ? 'edit-panel__button edit-panel__button--active'
+                      : 'edit-panel__button'
+                  }
+                  aria-pressed={isActive}
+                  onClick={() => {
+                    handleRingClick(value);
+                  }}
+                >
+                  {RING_LABELS[value]}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
 /**
- * Outside-Canvas panel. Reads the editing node ID and the task
- * from the stores, then renders the inner panel with a `key` so
- * a task change forces a fresh mount.
+ * Outside-Canvas panel.
  */
 export function EditPanel() {
   const editingNodeId = useEditingStore((s) => s.editingNodeId);
