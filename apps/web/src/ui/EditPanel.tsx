@@ -12,17 +12,17 @@
  *     position from the store and renders the HTML panel.
  *
  * Fields:
- *   7.5c-2: title
- *   7.5c-3a: notes
- *   7.5c-3b: priority, ring (this task)
- *   7.5c-3c: due date, recurrence
+ *   title, notes, priority, ring, due date, recurrence
  *
  * Autosave:
  *   - text fields: on blur, after 800ms of no typing, on Esc
  *   - choice fields: immediately on click
+ *   - date field: on change
  *
  * Ring movement (the node physically moving to the new ring) is
  * deferred to a later task. This task only writes the value.
+ *
+ * Desktop only. Mobile is not a target for this build.
  *
  * Esc closes the panel. Any pending value is saved first.
  *
@@ -39,7 +39,7 @@ import { useEditingStore } from '@/state/editing';
 import { useInteractionStore } from '@/state/interaction';
 import { useTaskStore } from '@/state/tasks';
 import { dispatchIntent } from '@/input';
-import type { TaskPriority, TaskRing } from '@orbit/shared';
+import type { TaskPriority, TaskRing, TaskRecurrence } from '@orbit/shared';
 
 const AUTOSAVE_DEBOUNCE_MS = 800;
 const PANEL_OFFSET_X = 40;
@@ -73,6 +73,50 @@ const RING_LABELS: Record<TaskRing, string> = {
   week: 'This Week',
   someday: 'Someday',
 };
+
+/** Recurrence values in display order. Null means "None". */
+type RecurrenceOption = TaskRecurrence | null;
+
+const RECURRENCE_VALUES: RecurrenceOption[] = [
+  null,
+  'daily',
+  'weekly',
+  'monthly',
+];
+
+/** Recurrence labels. */
+const RECURRENCE_LABELS: Record<string, string> = {
+  none: 'None',
+  daily: 'Daily',
+  weekly: 'Weekly',
+  monthly: 'Monthly',
+};
+
+function recurrenceLabel(value: RecurrenceOption): string {
+  return RECURRENCE_LABELS[value ?? 'none'] ?? 'None';
+}
+
+/**
+ * Converts a Task.dueAt string to a value suitable for an
+ * <input type="date">. Returns '' if the value is null or invalid.
+ */
+function dueAtToInputValue(dueAt: string | null): string {
+  if (!dueAt) return '';
+  // Already an ISO date or datetime. Take the YYYY-MM-DD part.
+  const datePart = dueAt.slice(0, 10);
+  return datePart;
+}
+
+/**
+ * Converts an <input type="date"> value to a value suitable for
+ * Task.dueAt. Returns null if the input is empty.
+ */
+function inputValueToDueAt(value: string): string | null {
+  if (!value) return null;
+  // value is already YYYY-MM-DD. Append time to make a full ISO
+  // string, at local midnight.
+  return new Date(`${value}T00:00:00`).toISOString();
+}
 
 /**
  * Projects a world position to screen coordinates.
@@ -139,6 +183,12 @@ function EditPanelInner({
   );
   const currentRing = useTaskStore(
     (s) => s.tasks.find((t) => t.id === taskId)?.ring ?? 'today',
+  );
+  const currentDueAt = useTaskStore(
+    (s) => s.tasks.find((t) => t.id === taskId)?.dueAt ?? null,
+  );
+  const currentRecurrence = useTaskStore(
+    (s) => s.tasks.find((t) => t.id === taskId)?.recurrence ?? null,
   );
 
   const [titleDraft, setTitleDraft] = useState<string>(initialTitle);
@@ -217,6 +267,19 @@ function EditPanelInner({
     }
   };
 
+  const handleDueAtChange = (value: string) => {
+    const next = inputValueToDueAt(value);
+    if (next !== currentDueAt) {
+      updateTask(taskId, 'dueAt', next);
+    }
+  };
+
+  const handleRecurrenceClick = (value: RecurrenceOption) => {
+    if (value !== currentRecurrence) {
+      updateTask(taskId, 'recurrence', value);
+    }
+  };
+
   // Esc closes the panel and flushes any pending saves.
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -260,7 +323,7 @@ function EditPanelInner({
   const panelX = flip
     ? nodeX - PANEL_OFFSET_X - PANEL_WIDTH
     : nodeX + PANEL_OFFSET_X;
-  const panelY = nodeY - 60;
+  const panelY = nodeY - 100;
 
   return (
     <div
@@ -270,6 +333,7 @@ function EditPanelInner({
         top: `${String(panelY)}px`,
         width: `${String(PANEL_WIDTH)}px`,
         pointerEvents: 'auto',
+        zIndex: 10,
       }}
     >
       <div className="edit-panel">
@@ -303,7 +367,7 @@ function EditPanelInner({
               handleNotesChange(e.target.value);
             }}
             onBlur={handleNotesBlur}
-            rows={4}
+            rows={3}
             maxLength={10000}
           />
         </div>
@@ -363,6 +427,52 @@ function EditPanelInner({
                   }}
                 >
                   {RING_LABELS[value]}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="edit-panel__field">
+          <label className="edit-panel__label" htmlFor="edit-panel-due">
+            Due date
+          </label>
+          <input
+            id="edit-panel-due"
+            className="edit-panel__input edit-panel__input--date"
+            type="date"
+            value={dueAtToInputValue(currentDueAt)}
+            onChange={(e) => {
+              handleDueAtChange(e.target.value);
+            }}
+          />
+        </div>
+
+        <div className="edit-panel__field">
+          <span className="edit-panel__label">Recurrence</span>
+          <div
+            className="edit-panel__button-row edit-panel__button-row--four"
+            role="group"
+            aria-label="Recurrence"
+          >
+            {RECURRENCE_VALUES.map((value) => {
+              const isActive = value === currentRecurrence;
+              const key = value ?? 'none';
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className={
+                    isActive
+                      ? 'edit-panel__button edit-panel__button--active'
+                      : 'edit-panel__button'
+                  }
+                  aria-pressed={isActive}
+                  onClick={() => {
+                    handleRecurrenceClick(value);
+                  }}
+                >
+                  {recurrenceLabel(value)}
                 </button>
               );
             })}

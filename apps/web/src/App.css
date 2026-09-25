@@ -150,3 +150,16 @@
   color: #e8eaf2;
   box-shadow: 0 0 8px rgba(123, 211, 234, 0.25);
 }
+/* Date input */
+
+.edit-panel__input--date {
+  color-scheme: dark;
+  cursor: pointer;
+}
+
+/* Recurrence row: four buttons, smaller text */
+
+.edit-panel__button-row--four .edit-panel__button {
+  font-size: 0.78rem;
+  padding: 7px 4px;
+}
