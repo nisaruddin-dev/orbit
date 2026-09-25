@@ -7,13 +7,11 @@
  * Reads the eight-state zone machine from the interaction store
  * and plays the appropriate choreography.
  *
- * Reduced motion (UI/UX §90):
- *   - `zone.appear` plays with a shorter, fade-only variant
- *   - `zone.pulse` does not loop; the zone holds at a static intensity
- *   - `zone.recover` fades quickly
+ * During `completing`, the completion choreography's `zone.*`
+ * tracks drive the zone's appearance. The zone no longer hard-
+ * codes those values.
  *
- * The `completing` state holds the zone at maximum intensity until
- * 7.6 runs the dissolve.
+ * Reduced motion (UI/UX §90): static glow, no pulse.
  */
 
 import { useEffect, useMemo, useRef } from 'react';
@@ -26,9 +24,6 @@ import { play, subscribe, isPlaying, cancel } from '@/choreography';
 import { useInteractionStore } from '@/state/interaction';
 import { usePreferenceStore } from '@/state/preferenceStore';
 
-/**
- * A flat torus representing the zone.
- */
 export function CompletionZone() {
   const meshRef = useRef<Mesh>(null);
 
@@ -44,12 +39,14 @@ export function CompletionZone() {
   const scaleRef = useRef(1.0);
 
   useEffect(() => {
-    const unsubscribe = subscribe((target, property, value) => {
-      if (target !== 'zone') return;
-      if (property === 'opacity') opacityRef.current = value;
-      if (property === 'emissive') emissiveRef.current = value;
-      if (property === 'scale') scaleRef.current = value;
-    });
+    const unsubscribe = subscribe(
+      (_target, property, value) => {
+        if (property === 'opacity') opacityRef.current = value;
+        if (property === 'emissive') emissiveRef.current = value;
+        if (property === 'scale') scaleRef.current = value;
+      },
+      { filter: { target: 'zone' } },
+    );
     return () => {
       unsubscribe();
     };
@@ -77,12 +74,11 @@ export function CompletionZone() {
     }
 
     if (zoneState === 'completing') {
+      // The completion choreography drives zone.* tracks from here.
+      // Cancel the idle loops so they do not fight it.
       cancel('zone.appear');
       cancel('zone.pulse');
       cancel('zone.recover');
-      opacityRef.current = 0.8;
-      emissiveRef.current = 1.4;
-      scaleRef.current = 1.05;
       return;
     }
 
@@ -105,7 +101,6 @@ export function CompletionZone() {
       void play('zone.pulse');
     }
     if (reducedMotion) {
-      // Static glow. No pulse.
       cancel('zone.pulse');
       emissiveRef.current = 0.6;
     }
@@ -117,9 +112,12 @@ export function CompletionZone() {
 
     const material = mesh.material as MeshStandardMaterial;
 
-    const proximityBoost = zoneProximity * 0.6;
+    // Proximity boost applies to idle states. During completing,
+    // the choreography's emissive is authoritative, so skip the
+    // boost.
+    const proximityBoost = zoneState === 'completing' ? 0 : zoneProximity * 0.6;
     const finalEmissive = Math.min(
-      1.4,
+      1.6,
       emissiveRef.current + proximityBoost,
     );
 

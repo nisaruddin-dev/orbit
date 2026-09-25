@@ -2,18 +2,21 @@
  * @module state/interaction
  *
  * Interaction store. Tracks selection, hover, drag, the eight-state
- * completion zone, and — since 7.5a — the settled position of
- * each node.
+ * completion zone, the settled position of each node, and the node
+ * currently running the completion choreography.
  *
  * The settled position is where a node sits when it is not being
  * dragged. It starts at the node's orbit position and is updated
  * when the user drops a node (commit) or releases it into the
  * completion zone (enter-completing).
  *
- * Owning settled position here — rather than inside TaskNode —
- * satisfies System Architecture §116 (One Owner per state) and
- * §163 (Interaction Controller owns user input). 7.3 deferred
- * this; 7.5a delivers it.
+ * `completingNodeId` is set when a release enters completing, and
+ * cleared when the completion choreography finishes. While it is
+ * set, the corresponding node is locked from dragging.
+ *
+ * Owning settled position and completing state here — rather than
+ * inside TaskNode — satisfies System Architecture §116 (One Owner
+ * per state) and §163 (Interaction Controller owns user input).
  */
 
 import { create } from 'zustand';
@@ -50,9 +53,6 @@ export const ZONE_BANDS = {
 /**
  * The completion zone's world position. Must match
  * SPATIAL.completionZonePosition in tokens.ts.
- *
- * Hardcoded here to avoid a circular import between the store
- * and the design tokens.
  */
 const ZONE_POSITION: readonly [number, number, number] = [0, -1.5, 3];
 
@@ -68,15 +68,14 @@ interface InteractionStore {
   // Release
   releaseDecision: ReleaseDecision;
 
+  // Completion
+  completingNodeId: string | null;
+
   // Keyboard navigation
   nodeOrder: string[];
   nodePositions: Record<string, [number, number, number]>;
 
-  /**
-   * Settled position per node. Where each node sits when not
-   * being dragged. Seeded on node registration; updated on
-   * commit and enter-completing.
-   */
+  // Settled position per node
   nodeSettledPositions: Record<string, [number, number, number]>;
 
   // Completion zone
@@ -94,6 +93,9 @@ interface InteractionStore {
   updateDrag: (worldPosition: [number, number, number]) => void;
   endDrag: (decision: Exclude<ReleaseDecision, null>) => void;
   clearReleaseDecision: () => void;
+
+  // Actions — completion
+  clearCompletingNode: () => void;
 
   // Actions — keyboard navigation
   setNodeList: (
@@ -140,6 +142,7 @@ export const useInteractionStore = create<InteractionStore>((set, get) => ({
   draggedNodeId: null,
   dragPosition: null,
   releaseDecision: null,
+  completingNodeId: null,
   nodeOrder: [],
   nodePositions: {},
   nodeSettledPositions: {},
@@ -190,23 +193,25 @@ export const useInteractionStore = create<InteractionStore>((set, get) => ({
     }
   },
   endDrag: (decision) => {
+    const isCompleting = decision === 'enter-completing';
     set({
       draggedNodeId: null,
       dragPosition: null,
       releaseDecision: decision,
-      zoneState: decision === 'enter-completing' ? 'completing' : 'recovery',
+      completingNodeId: isCompleting ? get().selectedNodeId : null,
+      zoneState: isCompleting ? 'completing' : 'recovery',
       zoneProximity: 0,
     });
   },
   clearReleaseDecision: () => {
     set({ releaseDecision: null });
   },
+  clearCompletingNode: () => {
+    set({ completingNodeId: null });
+  },
 
   // Keyboard navigation
   setNodeList: (ids, positions) => {
-    // Seed settled positions from the initial positions. Only set
-    // a node's position if it has not been set before — so a
-    // reload does not wipe a user's last drop.
     const existing = get().nodeSettledPositions;
     const seeded: Record<string, [number, number, number]> = { ...existing };
     for (const id of ids) {

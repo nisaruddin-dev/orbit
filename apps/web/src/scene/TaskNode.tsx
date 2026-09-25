@@ -7,17 +7,15 @@
  * Four layers: Core (sphere), Shell (wireframe), Ring (torus),
  * Label (SDF text).
  *
- * The node's settled position is owned by the interaction store.
- * TaskNode reads it from the store and writes to it on commit and
- * enter-completing.
+ * When the task is the completing node, the node subscribes to
+ * the `completion` choreography's `node.*` tracks and applies
+ * them each frame. The choreography's `scale`, `shellOpacity`,
+ * `labelOpacity`, and `emissive` values drive the node's visual
+ * response. Position is driven by the drag state until release,
+ * then by the choreography's settle phase.
  *
- * When the task's ring changes (via the edit panel), the node
- * animates radially from its current radius to the new ring's
- * radius over 0.8 seconds, keeping its current angle. The new
- * position is written to the store when the animation completes.
- *
- * All per-frame position motion happens imperatively in useFrame,
- * via the group ref.
+ * While a completion is in progress, the node is locked from
+ * dragging.
  */
 
 import { useEffect, useMemo, useRef } from 'react';
@@ -30,6 +28,7 @@ import type { ThreeEvent } from '@react-three/fiber';
 import { ACCENT, SPATIAL } from '@/design';
 import { dispatchIntent } from '@/input';
 import { useInteractionStore } from '@/state/interaction';
+import { subscribe, play } from '@/choreography';
 import type { TaskRing } from '@orbit/shared';
 
 type TaskPriority = 0 | 1 | 2 | 3;
@@ -41,20 +40,14 @@ const PRIORITY_COLORS: Record<TaskPriority, string> = {
   3: ACCENT.urgent,
 };
 
-/** Radius for each ring, from SPATIAL tokens. */
 const RING_RADII: Record<TaskRing, number> = {
   today: SPATIAL.ringTodayRadius,
   week: SPATIAL.ringWeekRadius,
   someday: SPATIAL.ringSomedayRadius,
 };
 
-/** Duration of the radial ring-change animation, in seconds. */
 const RING_CHANGE_DURATION = 0.8;
 
-/**
- * Cubic ease-out for the ring change. Fast start, slow finish —
- * the node decelerates into the new orbit.
- */
 function ringChangeEase(t: number): number {
   return 1 - Math.pow(1 - t, 3);
 }
@@ -82,6 +75,10 @@ export function TaskNode({
   const isDragged = useInteractionStore((s) => s.draggedNodeId === id);
   const dragPosition = useInteractionStore((s) => s.dragPosition);
   const releaseDecision = useInteractionStore((s) => s.releaseDecision);
+  const isCompleting = useInteractionStore((s) => s.completingNodeId === id);
+  const clearCompletingNode = useInteractionStore(
+    (s) => s.clearCompletingNode,
+  );
   const clearReleaseDecision = useInteractionStore(
     (s) => s.clearReleaseDecision,
   );
@@ -94,6 +91,13 @@ export function TaskNode({
     (s) => s.nodeSettledPositions[id] ?? position,
   );
 
+  // Values driven by the completion choreography. Reset to base
+  // on mount and on non-completing use.
+  const choreographyScaleRef = useRef(1.0);
+  const choreographyShellRef = useRef(0.15);
+  const choreographyLabelRef = useRef(1.0);
+  const choreographyEmissiveRef = useRef(0);
+
   const currentPositionRef = useRef(new Vector3(...position));
 
   const springRef = useRef<{
@@ -103,10 +107,6 @@ export function TaskNode({
   } | null>(null);
   const springTargetRef = useRef<[number, number, number] | null>(null);
 
-  /**
-   * Ring-change animation. When non-null, the node animates from
-   * `fromPosition` to `toPosition` over `duration` seconds.
-   */
   const ringChangeRef = useRef<{
     fromPosition: [number, number, number];
     toPosition: [number, number, number];
@@ -116,8 +116,6 @@ export function TaskNode({
 
   const lastDragPositionRef = useRef<[number, number, number] | null>(null);
   const wasDraggedRef = useRef(false);
-
-  // Track the previous ring so we can detect a change.
   const prevRingRef = useRef<TaskRing>(ring);
 
   useEffect(() => {
@@ -126,16 +124,55 @@ export function TaskNode({
     }
   }, [isDragged, dragPosition]);
 
-  // Detect ring change and start a radial animation.
+  // Subscribe to completion choreography's node.* tracks while
+  // this node is completing. The subscription is scoped, so we
+  // only receive node tracks, not zone or camera tracks.
+  useEffect(() => {
+    if (!isCompleting) return;
+
+    const unsubscribe = subscribe(
+      (_target, property, value) => {
+        if (property === 'scale') choreographyScaleRef.current = value;
+        if (property === 'shellOpacity')
+          choreographyShellRef.current = value;
+        if (property === 'labelOpacity')
+          choreographyLabelRef.current = value;
+        if (property === 'emissive')
+          choreographyEmissiveRef.current = value;
+      },
+      { filter: { target: 'node' } },
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [isCompleting]);
+
+  // When the completion choreography starts for this node, play it
+  // once and clear the completing state when it finishes.
+  useEffect(() => {
+    if (!isCompleting) {
+      // Reset the choreography values so the node returns to its
+      // base appearance if a previous completion did not finish.
+      choreographyScaleRef.current = 1.0;
+      choreographyShellRef.current = 0.15;
+      choreographyLabelRef.current = 1.0;
+      choreographyEmissiveRef.current = 0;
+      return;
+    }
+
+    const handle = play('completion');
+    void handle.promise.then(() => {
+      clearCompletingNode();
+    });
+  }, [isCompleting, clearCompletingNode]);
+
+  // Ring change animation.
   useEffect(() => {
     const prevRing = prevRingRef.current;
     if (prevRing === ring) return;
 
-    // Compute the new radius.
     const newRadius = RING_RADII[ring];
-
-    // The current position defines the angle. Preserve the angle,
-    // change the radius.
     const currentPos = settledPosition;
     const [cx, cy, cz] = currentPos;
     const currentRadius = Math.sqrt(cx * cx + cz * cz);
@@ -143,7 +180,6 @@ export function TaskNode({
     let newX: number;
     let newZ: number;
     if (currentRadius < 0.0001) {
-      // Node at origin (unusual). Place at angle 0 on the new ring.
       newX = newRadius;
       newZ = 0;
     } else {
@@ -179,6 +215,8 @@ export function TaskNode({
           duration: 0.6,
         };
       } else if (decision === 'enter-completing') {
+        // The node stays where it was released. The choreography
+        // takes over from here.
         if (lastPos) setNodeSettledPosition(id, lastPos);
       }
 
@@ -241,12 +279,10 @@ export function TaskNode({
     let targetZ: number;
 
     if (isDragged && dragPosition) {
-      // Dragging overrides everything.
       targetX = dragPosition[0];
       targetY = dragPosition[1];
       targetZ = dragPosition[2];
     } else if (ringChangeRef.current) {
-      // Ring change animation.
       const anim = ringChangeRef.current;
       anim.elapsed += delta;
       const t = Math.min(anim.elapsed / anim.duration, 1.0);
@@ -263,12 +299,10 @@ export function TaskNode({
         (anim.toPosition[2] - anim.fromPosition[2]) * eased;
 
       if (anim.elapsed >= anim.duration) {
-        // Commit the new position to the store.
         setNodeSettledPosition(id, anim.toPosition);
         ringChangeRef.current = null;
       }
     } else if (springRef.current && springTargetRef.current) {
-      // Spring-back animation.
       const spring = springRef.current;
       const target = springTargetRef.current;
       spring.elapsed += delta;
@@ -305,42 +339,69 @@ export function TaskNode({
       ringMesh.rotation.z += speed * delta;
     }
 
-    const targetGlow = isDragged
-      ? 1.5
-      : isSelected
-        ? 1.0
-        : isHovered
-          ? 0.3
-          : 0.15;
+    // Core glow: completion choreography overrides when active.
+    let targetGlow: number;
+    if (isCompleting) {
+      targetGlow = choreographyEmissiveRef.current;
+    } else {
+      targetGlow = isDragged
+        ? 1.5
+        : isSelected
+          ? 1.0
+          : isHovered
+            ? 0.3
+            : 0.15;
+    }
     const currentGlow = coreMaterial.emissiveIntensity;
     const deltaGlow = targetGlow - currentGlow;
     const step = Math.sign(deltaGlow) * Math.min(Math.abs(deltaGlow), 4 * delta);
     coreMaterial.emissiveIntensity = currentGlow + step;
 
-    const targetOpacity = isDragged
-      ? 0.8
-      : isSelected
-        ? 0.6
-        : isHovered
-          ? 0.3
-          : 0.15;
+    // Shell opacity: completion choreography overrides when active.
+    let targetOpacity: number;
+    if (isCompleting) {
+      targetOpacity = choreographyShellRef.current;
+    } else {
+      targetOpacity = isDragged
+        ? 0.8
+        : isSelected
+          ? 0.6
+          : isHovered
+            ? 0.3
+            : 0.15;
+    }
     shellMaterial.opacity += (targetOpacity - shellMaterial.opacity) * 0.15;
+
+    // Node scale: completion choreography overrides when active.
+    const appliedScale = isCompleting
+      ? choreographyScaleRef.current
+      : isDragged
+        ? 1.2
+        : isHovered
+          ? 1.05
+          : 1.0;
+    if (group) {
+      group.scale.setScalar(appliedScale);
+    }
   });
 
   const handlePointerOver = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
+    if (isCompleting) return;
     dispatchIntent({ type: 'HOVER_NODE', nodeId: id });
     document.body.style.cursor = 'pointer';
   };
 
   const handlePointerOut = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
+    if (isCompleting) return;
     dispatchIntent({ type: 'UNHOVER_NODE' });
     document.body.style.cursor = 'default';
   };
 
   const handlePointerDown = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
+    if (isCompleting) return;
     dispatchIntent({ type: 'SELECT_NODE', nodeId: id });
     beginDrag(id);
     dispatchIntent({ type: 'BEGIN_DRAG', nodeId: id });
@@ -352,6 +413,7 @@ export function TaskNode({
 
   const handleDoubleClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
+    if (isCompleting) return;
     dispatchIntent({ type: 'FOCUS_NODE', nodeId: id });
   };
 
@@ -367,7 +429,6 @@ export function TaskNode({
         onPointerDown={handlePointerDown}
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
-        scale={isDragged ? 1.2 : isHovered ? 1.05 : 1.0}
       >
         <sphereGeometry args={[SPATIAL.nodeRadius, 32, 16]} />
       </mesh>
