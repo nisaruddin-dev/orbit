@@ -7,6 +7,11 @@
  *
  * Choreographies are data, not code. The engine interprets them.
  *
+ * A choreography may be a single phase (a flat set of tracks) or
+ * a sequence of phases that play one after another. The completion
+ * choreography is a sequence: Reach, Grab, Drag, Release, Dissolve,
+ * Settle.
+ *
  * Based on System Architecture §35.
  */
 
@@ -34,11 +39,13 @@ export interface Keyframe {
 
 /**
  * A track animates one numeric property of one named target.
- * The target is a string key the caller provides when playing the
- * choreography. For example, a zone might be played with
- * `play('zone.appear', { target: 'zone' })`, and a track with
- * `target: 'zone'` and `property: 'opacity'` would animate the
- * caller's `zone.opacity` value.
+ *
+ * `target` is a string key that identifies the object being
+ * animated. During completion, targets include `node`, `zone`,
+ * `camera`, and `particles`.
+ *
+ * `property` is the property on that target. `node.scale`,
+ * `zone.opacity`, `particles.count`.
  */
 export interface ChoreographyTrack {
   target: string;
@@ -47,18 +54,34 @@ export interface ChoreographyTrack {
 }
 
 /**
+ * A phase within a sequence. Each phase has a name, its own
+ * duration, and its own tracks. Phases play in order.
+ */
+export interface SequencePhase {
+  name: string;
+  duration: number;
+  tracks: ChoreographyTrack[];
+}
+
+/**
  * A choreography.
- *   name                 — unique identifier for lookup
- *   duration             — total duration in seconds
- *   tracks               — one or more tracks
- *   interruptible        — whether another choreography may cancel this one
- *   reducedMotionVariant — optional name of a replacement choreography
- *                          to play instead when reduced motion is active
+ *
+ * A choreography is either:
+ *   - a single phase (tracks only, no sequence), or
+ *   - a sequence of phases (sequence populated).
+ *
+ * The engine plays the sequence in order, one phase after
+ * another. The total duration is the sum of the phase durations.
+ *
+ * `interruptible` — whether another choreography may cancel this.
+ * `reducedMotionVariant` — optional name of a replacement
+ *   choreography played instead when reduced motion is active.
  */
 export interface Choreography {
   name: string;
   duration: number;
   tracks: ChoreographyTrack[];
+  sequence?: SequencePhase[];
   interruptible: boolean;
   reducedMotionVariant?: string;
 }
@@ -85,3 +108,21 @@ export type TrackValueListener = (
   property: string,
   value: number,
 ) => void;
+
+/**
+ * A filter for a scoped listener. If provided, the listener is
+ * only called for tracks matching the filter. If null, the listener
+ * is called for every track.
+ */
+export interface ListenerFilter {
+  target?: string;
+  property?: string;
+}
+
+/**
+ * Options for subscribing to the engine. The listener receives
+ * values only for tracks matching the filter.
+ */
+export interface SubscribeOptions {
+  filter?: ListenerFilter;
+}

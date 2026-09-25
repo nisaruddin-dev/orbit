@@ -10,6 +10,9 @@ export type {
   ChoreographyTrack,
   EasingName,
   Keyframe,
+  ListenerFilter,
+  SequencePhase,
+  SubscribeOptions,
   TrackValueListener,
 } from './types';
 
@@ -23,5 +26,7 @@ export {
   subscribe,
   tick,
 } from './engine';
+
+export { COMPLETION_CHOREOGRAPHY } from './completion';
 
 export { ChoreographyTicker } from './ChoreographyTicker';

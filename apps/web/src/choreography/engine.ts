@@ -4,17 +4,14 @@
  * The choreography engine. Plays named choreographies, ticks them
  * forward each frame, and notifies listeners of track value changes.
  *
- * State machine composition (from the pre-7.4 decisions):
+ * Supports two kinds of choreographies:
+ *   - flat choreographies with a single set of tracks
+ *   - sequences of phases that play one after another
  *
- *   CHOREOGRAPHY STATE (top-level):
- *     IDLE → REACH → GRAB → DRAG → RELEASE → DISSOLVE → SETTLE
- *
- *   DRAG STATE is a sub-state active during REACH/GRAB/DRAG.
- *   ZONE STATE is a sub-state of drag, driven by proximity.
- *
- *   The choreography engine does not know about drag or zone
- *   semantics. It only plays named choreographies and reports
- *   values. The layer above decides which choreography to play.
+ * Listeners are scoped. A listener may subscribe with a filter
+ * (by target, by property, or both). The engine only notifies a
+ * listener for tracks matching its filter. This avoids flooding
+ * every listener with every value every frame.
  *
  * Lifecycle (from System Architecture §74):
  *   create → activate → update → deactivate → dispose
@@ -23,10 +20,13 @@
 
 import { EASINGS } from './easings';
 import { ZONE_CHOREOGRAPHIES } from './zone';
+import { COMPLETION_CHOREOGRAPHY } from './completion';
 import type {
   Choreography,
   ChoreographyHandle,
+  ChoreographyTrack,
   Keyframe,
+  ListenerFilter,
   TrackValueListener,
 } from './types';
 
@@ -45,6 +45,14 @@ function register(choreography: Choreography): void {
 for (const c of ZONE_CHOREOGRAPHIES) {
   register(c);
 }
+register(COMPLETION_CHOREOGRAPHY);
+
+/** A scoped listener entry. */
+interface ListenerEntry {
+  id: number;
+  listener: TrackValueListener;
+  filter: ListenerFilter;
+}
 
 /** An active choreography instance. */
 interface ActiveChoreography {
@@ -60,10 +68,11 @@ interface ActiveChoreography {
  * engine per application.
  */
 const active = new Map<string, ActiveChoreography>();
-const listeners = new Set<TrackValueListener>();
+const listeners = new Map<number, ListenerEntry>();
 
 /** Monotonic counter for handle IDs. */
 let nextHandleId = 0;
+let nextListenerId = 0;
 
 /**
  * Sample a track's value at a given elapsed time.
@@ -80,7 +89,6 @@ function sampleTrack(
 
   const t = Math.min(elapsed / duration, 1.0);
 
-  // Find the segment containing t.
   let prev = first;
   for (let i = 1; i < keyframes.length; i++) {
     const next = keyframes[i];
@@ -99,6 +107,59 @@ function sampleTrack(
 }
 
 /**
+ * Notify all listeners whose filter matches the given track.
+ * A listener with no filter receives every track.
+ */
+function notify(
+  target: string,
+  property: string,
+  value: number,
+): void {
+  for (const entry of listeners.values()) {
+    const f = entry.filter;
+    if (f.target !== undefined && f.target !== target) continue;
+    if (f.property !== undefined && f.property !== property) continue;
+    entry.listener(target, property, value);
+  }
+}
+
+/**
+ * Compute the total duration of a choreography, including all
+ * sequence phases.
+ */
+function totalDuration(choreography: Choreography): number {
+  if (choreography.sequence && choreography.sequence.length > 0) {
+    return choreography.sequence.reduce(
+      (sum, phase) => sum + phase.duration,
+      0,
+    );
+  }
+  return choreography.duration;
+}
+
+/**
+ * Given elapsed time and a sequence, return the active phase and
+ * the elapsed time within that phase.
+ */
+function resolvePhase(
+  sequence: NonNullable<Choreography['sequence']>,
+  elapsed: number,
+): { phaseTracks: ChoreographyTrack[]; phaseElapsed: number; phaseDuration: number } | null {
+  let remaining = elapsed;
+  for (const phase of sequence) {
+    if (remaining < phase.duration) {
+      return {
+        phaseTracks: phase.tracks,
+        phaseElapsed: remaining,
+        phaseDuration: phase.duration,
+      };
+    }
+    remaining -= phase.duration;
+  }
+  return null;
+}
+
+/**
  * Play a choreography by name. Returns a handle that can be used
  * to cancel it or await its completion.
  *
@@ -111,11 +172,9 @@ export function play(name: string): ChoreographyHandle {
     throw new Error(`Choreography not found: ${name}`);
   }
 
-  // If an instance with this name is playing and interruptible, cancel it.
   const existing = active.get(name);
   if (existing) {
     if (!existing.choreography.interruptible) {
-      // Not interruptible — return a handle that resolves immediately.
       return {
         id: existing.id,
         name,
@@ -182,6 +241,11 @@ export function isPlaying(name: string): boolean {
 /**
  * Advance all active choreographies. Called once per frame from
  * a component inside the Canvas.
+ *
+ * If a choreography has a sequence, only the currently active
+ * phase's tracks are sampled this frame. Phases that have not
+ * started are not sampled. Phases that have finished are not
+ * sampled.
  */
 export function tick(): void {
   if (active.size === 0) return;
@@ -193,12 +257,24 @@ export function tick(): void {
     if (instance.cancelled) continue;
 
     const elapsed = now - instance.startTime;
-    const duration = instance.choreography.duration;
+    const duration = totalDuration(instance.choreography);
 
-    for (const track of instance.choreography.tracks) {
-      const value = sampleTrack(track.keyframes, elapsed, duration);
-      for (const listener of listeners) {
-        listener(track.target, track.property, value);
+    if (instance.choreography.sequence) {
+      const phase = resolvePhase(instance.choreography.sequence, elapsed);
+      if (phase) {
+        for (const track of phase.phaseTracks) {
+          const value = sampleTrack(
+            track.keyframes,
+            phase.phaseElapsed,
+            phase.phaseDuration,
+          );
+          notify(track.target, track.property, value);
+        }
+      }
+    } else {
+      for (const track of instance.choreography.tracks) {
+        const value = sampleTrack(track.keyframes, elapsed, duration);
+        notify(track.target, track.property, value);
       }
     }
 
@@ -214,12 +290,23 @@ export function tick(): void {
 }
 
 /**
- * Subscribe to track value changes. Returns an unsubscribe function.
+ * Subscribe to track value changes. If a filter is provided via
+ * the options argument, only values for tracks matching the filter
+ * are delivered. Returns an unsubscribe function.
  */
-export function subscribe(listener: TrackValueListener): () => void {
-  listeners.add(listener);
+export function subscribe(
+  listener: TrackValueListener,
+  options?: { filter?: ListenerFilter },
+): () => void {
+  const id = nextListenerId;
+  nextListenerId += 1;
+  listeners.set(id, {
+    id,
+    listener,
+    filter: options?.filter ?? {},
+  });
   return () => {
-    listeners.delete(listener);
+    listeners.delete(id);
   };
 }
 
