@@ -23,6 +23,7 @@ import {
   Lighting,
   PostProcessing,
   Rings,
+  SettleToast,
   Sky,
   TaskNode,
   ZoneProjection,
@@ -99,6 +100,7 @@ export default function App() {
         <CompletionZone />
         <ZoneProjection />
         <DissolveParticles />
+        <SettleToast />
 
         <Dust />
         <PostProcessing />
