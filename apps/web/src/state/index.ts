@@ -7,7 +7,7 @@
 export { useCameraStore } from './camera';
 export { useInteractionStore } from './interaction';
 export { usePreferenceStore } from './preferenceStore';
-export { useTaskStore, INITIAL_TASKS } from './tasks';
+export { useTaskStore } from './tasks';
 export { useEditingStore } from './editing';
 
 export type { ZoneState, ReleaseDecision } from './interaction';

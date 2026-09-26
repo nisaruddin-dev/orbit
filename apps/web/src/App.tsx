@@ -36,6 +36,7 @@ import {
 } from '@/scene';
 import { useInteractionStore } from '@/state/interaction';
 import { useTaskStore } from '@/state/tasks';
+import { useTasks } from '@/data/queries';
 import { EditPanel, EditPanelTracker } from '@/ui/EditPanel';
 import { UndoGhost } from '@/ui/UndoGhost';
 
@@ -48,6 +49,7 @@ export default function App() {
   useKeyboardNavigation();
 
   const tasks = useTaskStore((s) => s.tasks);
+  useTasks();
   const setNodeList = useInteractionStore((s) => s.setNodeList);
 
   useEffect(() => {

@@ -1,129 +1,40 @@
 /**
  * @module state/tasks
  *
- * Task store. Holds the current tasks. In 7.5c-1, this replaces
- * the const MOCK_TASKS array that lived in App.tsx. In Part 8,
- * this store will be backed by the API and IndexedDB.
+ * Task store. A local cache of the tasks returned by the API.
  *
- * The store exposes tasks as a list plus a lookup by ID. Update
- * actions write through both. No optimistic or deferred writes
- * yet — that comes with the sync layer in Part 8.
+ * The store is populated by useTasks (in data/queries.ts), which
+ * fetches from the backend and calls setTasks. Components read
+ * from the store.
  *
- * Source: System Architecture §17 (local task projection),
- * PRD F-901 (persistence).
+ * The store is the cache. The API is the source of truth.
+ * Mutations that write to the API are handled in 8b-5; this
+ * store is read-mostly for now.
+ *
+ * Source: System Architecture §9 (State Authority Rule),
+ * §17.1 (Server state).
  */
 
 import { create } from 'zustand';
 
 import type { Task } from '@orbit/shared';
 
-const NOW = new Date().toISOString();
-
-/**
- * Initial mock tasks. These conform to the canonical Task
- * interface. They will be replaced by real data from the backend
- * in Part 8.
- */
-export const INITIAL_TASKS: Task[] = [
-  {
-    id: 'task-1',
-    userId: 'mock-user',
-    title: 'Review PR feedback',
-    notes: '',
-    ring: 'today',
-    priority: 2,
-    status: 'idle',
-    dueAt: null,
-    recurrence: null,
-    createdAt: NOW,
-    updatedAt: NOW,
-    completedAt: null,
-    archivedAt: null,
-    orbitAngle: 0,
-    orbitRadius: 4,
-  },
-  {
-    id: 'task-2',
-    userId: 'mock-user',
-    title: 'Team standup',
-    notes: '',
-    ring: 'today',
-    priority: 1,
-    status: 'idle',
-    dueAt: null,
-    recurrence: null,
-    createdAt: NOW,
-    updatedAt: NOW,
-    completedAt: null,
-    archivedAt: null,
-    orbitAngle: Math.PI / 2,
-    orbitRadius: 4,
-  },
-  {
-    id: 'task-3',
-    userId: 'mock-user',
-    title: 'Write design doc',
-    notes: '',
-    ring: 'week',
-    priority: 1,
-    status: 'idle',
-    dueAt: null,
-    recurrence: null,
-    createdAt: NOW,
-    updatedAt: NOW,
-    completedAt: null,
-    archivedAt: null,
-    orbitAngle: Math.PI / 4,
-    orbitRadius: 7,
-  },
-  {
-    id: 'task-4',
-    userId: 'mock-user',
-    title: 'Refactor auth module',
-    notes: '',
-    ring: 'week',
-    priority: 0,
-    status: 'idle',
-    dueAt: null,
-    recurrence: null,
-    createdAt: NOW,
-    updatedAt: NOW,
-    completedAt: null,
-    archivedAt: null,
-    orbitAngle: Math.PI,
-    orbitRadius: 7,
-  },
-  {
-    id: 'task-5',
-    userId: 'mock-user',
-    title: 'Learn Rust',
-    notes: '',
-    ring: 'someday',
-    priority: 0,
-    status: 'idle',
-    dueAt: null,
-    recurrence: null,
-    createdAt: NOW,
-    updatedAt: NOW,
-    completedAt: null,
-    archivedAt: null,
-    orbitAngle: (3 * Math.PI) / 4,
-    orbitRadius: 10,
-  },
-];
-
 interface TaskStore {
   tasks: Task[];
 
   /**
-   * Replace the entire task list.
+   * Replace the entire task list. Called by useTasks when the
+   * query resolves, and later by realtime reconciliation.
    */
   setTasks: (tasks: Task[]) => void;
 
   /**
-   * Update a single field on a single task. Writes `updatedAt`
+   * Update a single field on a single task. Writes updatedAt
    * automatically. Returns the updated task, or null if the ID
    * was not found.
+   *
+   * In 8b-5, this will be backed by an API mutation. For now it
+   * only updates the local cache.
    */
   updateTask: <K extends keyof Task>(
     taskId: string,
@@ -138,7 +49,8 @@ interface TaskStore {
 }
 
 export const useTaskStore = create<TaskStore>((set, get) => ({
-  tasks: INITIAL_TASKS,
+  // Start empty. The query populates this.
+  tasks: [],
 
   setTasks: (tasks) => {
     set({ tasks });

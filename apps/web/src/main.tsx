@@ -1,16 +1,16 @@
 /**
  * Orbit — Application entry point.
  *
- * Mounts the React tree and installs the reduced-motion media
- * query listener. The listener writes to the preference store
- * so any component can read the current preference.
+ * Mounts the React tree inside a TanStack Query provider, and
+ * installs the reduced-motion media query listener.
  *
- * StrictMode is temporarily removed because @react-three/postprocessing's
- * EffectComposer is not StrictMode-safe in React 19. It will be
- * restored when the library fixes the issue upstream.
+ * StrictMode is temporarily removed because
+ * @react-three/postprocessing's EffectComposer is not
+ * StrictMode-safe in React 19.
  */
 
 import { createRoot } from 'react-dom/client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import App from './App.tsx';
 import { usePreferenceStore } from '@/state/preferenceStore';
@@ -23,7 +23,7 @@ if (!rootElement) {
   throw new Error('Root element #root not found in index.html');
 }
 
-// Install the reduced-motion listener before rendering.
+// Reduced-motion listener.
 const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
 usePreferenceStore
   .getState()
@@ -32,4 +32,32 @@ motionQuery.addEventListener('change', (event) => {
   usePreferenceStore.getState().setPrefersReducedMotion(event.matches);
 });
 
-createRoot(rootElement).render(<App />);
+// The QueryClient. One per app instance.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Do not retry on 4xx errors (auth, not found, validation).
+      // Retry on network errors, up to twice.
+      retry: (failureCount, error) => {
+        // If the error carries a status, only retry on 5xx.
+        const status =
+          typeof error === 'object' && error !== null && 'status' in error
+            ? (error as { status?: number }).status
+            : undefined;
+        if (typeof status === 'number' && status >= 400 && status < 500) {
+          return false;
+        }
+        return failureCount < 2;
+      },
+      // Data is considered fresh for 30 seconds. Realtime and
+      // explicit invalidation handle the rest.
+      staleTime: 30_000,
+    },
+  },
+});
+
+createRoot(rootElement).render(
+  <QueryClientProvider client={queryClient}>
+    <App />
+  </QueryClientProvider>,
+);
