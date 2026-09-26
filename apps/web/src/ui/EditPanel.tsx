@@ -38,6 +38,7 @@ import { ACCENT } from '@/design';
 import { useEditingStore } from '@/state/editing';
 import { useInteractionStore } from '@/state/interaction';
 import { useTaskStore } from '@/state/tasks';
+import { useUpdateTask } from '@/data/mutations';
 import { dispatchIntent } from '@/input';
 import type { TaskPriority, TaskRing, TaskRecurrence } from '@orbit/shared';
 
@@ -221,7 +222,7 @@ function EditPanelInner({
 }: EditPanelInnerProps) {
   const screenPos = useEditingStore((s) => s.screenPos);
   const closeEditor = useEditingStore((s) => s.closeEditor);
-  const updateTask = useTaskStore((s) => s.updateTask);
+  const updateTask = useUpdateTask();
 
   const currentTitle = useTaskStore(
     (s) => s.tasks.find((t) => t.id === taskId)?.title ?? initialTitle,
@@ -258,13 +259,13 @@ function EditPanelInner({
 
   const saveTitle = (value: string) => {
     if (value !== currentTitle) {
-      updateTask(taskId, 'title', value);
+      updateTask.mutate({ id: taskId, patch: { title: value } });
     }
   };
 
   const saveNotes = (value: string) => {
     if (value !== currentNotes) {
-      updateTask(taskId, 'notes', value);
+      updateTask.mutate({ id: taskId, patch: { notes: value } });
     }
   };
 
@@ -308,26 +309,26 @@ function EditPanelInner({
 
   const handlePriorityClick = (value: TaskPriority) => {
     if (value !== currentPriority) {
-      updateTask(taskId, 'priority', value);
+      updateTask.mutate({ id: taskId, patch: { priority: value } });
     }
   };
 
   const handleRingClick = (value: TaskRing) => {
     if (value !== currentRing) {
-      updateTask(taskId, 'ring', value);
+      updateTask.mutate({ id: taskId, patch: { ring: value } });
     }
   };
 
   const handleDueAtChange = (value: string) => {
     const next = inputValueToDueAt(value);
     if (next !== currentDueAt) {
-      updateTask(taskId, 'dueAt', next);
+      updateTask.mutate({ id: taskId, patch: { due_at: next } });
     }
   };
 
   const handleRecurrenceClick = (value: RecurrenceOption) => {
     if (value !== currentRecurrence) {
-      updateTask(taskId, 'recurrence', value);
+      updateTask.mutate({ id: taskId, patch: { recurrence: value } });
     }
   };
 
