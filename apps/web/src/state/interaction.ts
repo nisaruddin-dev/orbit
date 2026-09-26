@@ -113,6 +113,13 @@ interface InteractionStore {
     position: [number, number, number],
   ) => void;
 
+  /**
+   * Remove settled positions for any task IDs not in the given
+   * list. Called when the task list changes so that stale
+   * positions do not accumulate.
+   */
+  pruneNodeSettledPositions: (activeIds: string[]) => void;
+
   // Actions — zone
   setZoneState: (state: ZoneState) => void;
   setZoneProximity: (value: number) => void;
@@ -285,6 +292,16 @@ export const useInteractionStore = create<InteractionStore>((set, get) => ({
   },
 
   setNodeSettledPosition: (nodeId, position) => {
+    // Reject non-finite positions. A NaN or null coordinate will
+    // propagate into the camera and blank the scene.
+    const [x, y, z] = position;
+    if (
+      !Number.isFinite(x) ||
+      !Number.isFinite(y) ||
+      !Number.isFinite(z)
+    ) {
+      return;
+    }
     const existing = get().nodeSettledPositions;
     set({
       nodeSettledPositions: {
@@ -293,6 +310,23 @@ export const useInteractionStore = create<InteractionStore>((set, get) => ({
       },
     });
   },
+  pruneNodeSettledPositions: (activeIds) => {
+    const existing = get().nodeSettledPositions;
+    const active = new Set(activeIds);
+    const next: Record<string, [number, number, number]> = {};
+    let changed = false;
+    for (const [id, pos] of Object.entries(existing)) {
+      if (active.has(id)) {
+        next[id] = pos;
+      } else {
+        changed = true;
+      }
+    }
+    if (changed) {
+      set({ nodeSettledPositions: next });
+    }
+  },
+
 
   setZoneState: (state) => {
     set({ zoneState: state });

@@ -51,6 +51,9 @@ export default function App() {
   const tasks = useTaskStore((s) => s.tasks);
   useTasks();
   const setNodeList = useInteractionStore((s) => s.setNodeList);
+  const pruneNodeSettledPositions = useInteractionStore(
+    (s) => s.pruneNodeSettledPositions,
+  );
 
   useEffect(() => {
     const ids = tasks.map((t) => t.id);
@@ -64,7 +67,8 @@ export default function App() {
       ];
     }
     setNodeList(ids, positions);
-  }, [tasks, setNodeList]);
+    pruneNodeSettledPositions(ids);
+  }, [tasks, setNodeList, pruneNodeSettledPositions]);
 
   return (
     <div className="app">

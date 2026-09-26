@@ -113,6 +113,16 @@ export function computeFocusPose(
 ): CameraPose {
   const [px, py, pz] = nodePosition;
 
+  // Guard against non-finite input. A NaN coordinate would
+  // propagate to the camera and blank the scene.
+  if (
+    !Number.isFinite(px) ||
+    !Number.isFinite(py) ||
+    !Number.isFinite(pz)
+  ) {
+    return CAMERA_POSES.focus;
+  }
+
   const radialLength = Math.sqrt(px * px + pz * pz);
 
   // Outward direction in the XZ plane. If the node is at origin,

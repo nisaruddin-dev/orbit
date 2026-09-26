@@ -23,6 +23,7 @@ import { useEffect } from 'react';
 import { useTaskStore } from '@/state/tasks';
 import { listTasks } from './api';
 import { loadTasksFromCache, saveTasksToCache } from './cache';
+import { useRealtimeTasks } from './realtime';
 
 /**
  * Query key for the tasks list.
@@ -35,6 +36,10 @@ export const tasksQueryKey = ['tasks'] as const;
  */
 export function useTasks() {
   const setTasks = useTaskStore((s) => s.setTasks);
+
+  // Subscribe to realtime changes. Any insert, update, or delete
+  // on the tasks table invalidates the query, which refetches.
+  useRealtimeTasks();
 
   // Hydrate the store from the cache before the query runs.
   // This happens once on mount. The query then overwrites the

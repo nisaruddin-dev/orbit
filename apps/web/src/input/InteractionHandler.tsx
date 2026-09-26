@@ -81,7 +81,15 @@ export function InteractionHandler() {
             useInteractionStore.getState().nodeSettledPositions[
               intent.nodeId
             ];
-          if (settled) {
+          // Only focus when the settled position is a valid
+          // finite array. A NaN or null coordinate would blank
+          // the scene.
+          if (
+            settled &&
+            Number.isFinite(settled[0]) &&
+            Number.isFinite(settled[1]) &&
+            Number.isFinite(settled[2])
+          ) {
             setFocusTarget(settled);
             setCameraState('focus');
             openEditor(intent.nodeId);
