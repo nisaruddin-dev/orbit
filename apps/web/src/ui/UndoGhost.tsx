@@ -8,13 +8,13 @@
  * It auto-dismisses after 5 seconds. Clicking the Undo button
  * restores the task to its prior position and dismisses the ghost.
  *
- * Per UI/UX §58–§59: small, translucent, frosted, spatial,
- * non-blocking. It must never compete with the scene.
+ * The countdown bar is driven imperatively via a ref, not React
+ * state, so no re-renders happen during the countdown.
  *
  * Source: PRD F-407, UI/UX §58–§59.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { useInteractionStore } from '@/state/interaction';
 import { useTaskStore } from '@/state/tasks';
@@ -30,15 +30,12 @@ export function UndoGhost() {
   );
   const tasks = useTaskStore((s) => s.tasks);
 
-  const [progress, setProgress] = useState(1.0);
+  const progressBarRef = useRef<HTMLDivElement>(null);
 
-  // Auto-dismiss after 5 seconds. The progress value drives a
-  // visual countdown bar.
+  // Drive the countdown bar imperatively. No React state, so no
+  // re-renders during the 5-second window.
   useEffect(() => {
-    if (!lastCompleted) {
-      setProgress(1.0);
-      return;
-    }
+    if (!lastCompleted) return;
 
     const start = performance.now();
     let rafId = 0;
@@ -46,7 +43,12 @@ export function UndoGhost() {
     const tick = () => {
       const elapsed = (performance.now() - start) / 1000;
       const remaining = Math.max(0, 1 - elapsed / UNDO_WINDOW_SECONDS);
-      setProgress(remaining);
+
+      const bar = progressBarRef.current;
+      if (bar) {
+        bar.style.transform = `scaleX(${String(remaining)})`;
+      }
+
       if (remaining > 0) {
         rafId = requestAnimationFrame(tick);
       } else {
@@ -66,8 +68,6 @@ export function UndoGhost() {
   const title = task?.title ?? 'Task';
 
   const handleUndo = () => {
-    // Restore the node to its prior position. In Part 8, this will
-    // also restore `status` on the server.
     setNodeSettledPosition(lastCompleted.taskId, lastCompleted.priorPosition);
     clearLastCompleted();
   };
@@ -85,10 +85,7 @@ export function UndoGhost() {
       >
         Undo
       </button>
-      <div
-        className="undo-ghost__progress"
-        style={{ transform: `scaleX(${String(progress)})` }}
-      />
+      <div ref={progressBarRef} className="undo-ghost__progress" />
     </div>
   );
 }
