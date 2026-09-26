@@ -1,12 +1,11 @@
 """
 Orbit API — Task routes.
 
-CRUD, complete, restore, archive, unarchive. Every mutation
-writes an event row for synchronization and audit.
+CRUD, complete, restore, archive, unarchive. Every mutation writes
+an event row for synchronization and audit.
 
-The user identity is a placeholder in this sub-step. It will be
-replaced with the authenticated user from the Supabase JWT in
-sub-step 8a-7.
+Every route requires an authenticated user via the `get_current_user`
+dependency. Tasks are scoped to that user.
 
 Source: PRD §20 (API Model), TRD §26 (API Design),
 System Architecture §78 (API Contract).
@@ -20,16 +19,15 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import get_current_user
 from app.db import get_session
 from app.models import Task, TaskEvent
 from app.schemas import TaskCreate, TaskList, TaskRead, TaskUpdate
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
-# Placeholder user ID until auth is wired in 8a-7.
-PLACEHOLDER_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
-
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
+UserDep = Annotated[UUID, Depends(get_current_user)]
 
 
 async def _get_owned_task(
@@ -71,25 +69,29 @@ def _log_event(
 
 
 @router.get("", response_model=TaskList)
-async def list_tasks(session: SessionDep) -> TaskList:
+async def list_tasks(session: SessionDep, user_id: UserDep) -> TaskList:
     """
-    List all tasks for the current user.
+    List all tasks for the authenticated user.
 
     Returns archived and completed tasks too — the frontend
-    filters by status. No pagination; the dataset is small.
+    filters by status.
     """
     result = await session.execute(
-        select(Task).where(Task.user_id == PLACEHOLDER_USER_ID).order_by(Task.created_at.asc()),
+        select(Task).where(Task.user_id == user_id).order_by(Task.created_at.asc()),
     )
     tasks = result.scalars().all()
     return TaskList(tasks=[TaskRead.model_validate(t) for t in tasks])
 
 
 @router.post("", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
-async def create_task(payload: TaskCreate, session: SessionDep) -> TaskRead:
+async def create_task(
+    payload: TaskCreate,
+    session: SessionDep,
+    user_id: UserDep,
+) -> TaskRead:
     """Create a new task."""
     task = Task(
-        user_id=PLACEHOLDER_USER_ID,
+        user_id=user_id,
         title=payload.title,
         notes=payload.notes,
         ring=payload.ring,
@@ -111,9 +113,13 @@ async def create_task(payload: TaskCreate, session: SessionDep) -> TaskRead:
 
 
 @router.get("/{task_id}", response_model=TaskRead)
-async def read_task(task_id: UUID, session: SessionDep) -> TaskRead:
+async def read_task(
+    task_id: UUID,
+    session: SessionDep,
+    user_id: UserDep,
+) -> TaskRead:
     """Read a single task by ID."""
-    task = await _get_owned_task(session, task_id, PLACEHOLDER_USER_ID)
+    task = await _get_owned_task(session, task_id, user_id)
     return TaskRead.model_validate(task)
 
 
@@ -122,6 +128,7 @@ async def update_task(
     task_id: UUID,
     payload: TaskUpdate,
     session: SessionDep,
+    user_id: UserDep,
 ) -> TaskRead:
     """
     Update fields on a task.
@@ -129,7 +136,7 @@ async def update_task(
     Only provided fields are changed. Every update increments
     `version` for optimistic concurrency.
     """
-    task = await _get_owned_task(session, task_id, PLACEHOLDER_USER_ID)
+    task = await _get_owned_task(session, task_id, user_id)
 
     updates = payload.model_dump(exclude_unset=True)
     for field, value in updates.items():
@@ -146,15 +153,15 @@ async def update_task(
 
 
 @router.post("/{task_id}/complete", response_model=TaskRead)
-async def complete_task(task_id: UUID, session: SessionDep) -> TaskRead:
+async def complete_task(
+    task_id: UUID,
+    session: SessionDep,
+    user_id: UserDep,
+) -> TaskRead:
     """
-    Mark a task as completed.
-
-    Sets status to 'completed' and stamps completed_at. Idempotent:
-    completing an already-completed task is a no-op that returns
-    the current state.
+    Mark a task as completed. Idempotent.
     """
-    task = await _get_owned_task(session, task_id, PLACEHOLDER_USER_ID)
+    task = await _get_owned_task(session, task_id, user_id)
 
     if task.status != "completed":
         task.status = "completed"
@@ -169,13 +176,15 @@ async def complete_task(task_id: UUID, session: SessionDep) -> TaskRead:
 
 
 @router.post("/{task_id}/restore", response_model=TaskRead)
-async def restore_task(task_id: UUID, session: SessionDep) -> TaskRead:
+async def restore_task(
+    task_id: UUID,
+    session: SessionDep,
+    user_id: UserDep,
+) -> TaskRead:
     """
-    Restore a task from completed or archived back to idle.
-
-    Clears completed_at and archived_at. Idempotent.
+    Restore a task from completed or archived back to idle. Idempotent.
     """
-    task = await _get_owned_task(session, task_id, PLACEHOLDER_USER_ID)
+    task = await _get_owned_task(session, task_id, user_id)
 
     if task.status != "idle":
         task.status = "idle"
@@ -191,14 +200,15 @@ async def restore_task(task_id: UUID, session: SessionDep) -> TaskRead:
 
 
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def archive_task(task_id: UUID, session: SessionDep) -> None:
+async def archive_task(
+    task_id: UUID,
+    session: SessionDep,
+    user_id: UserDep,
+) -> None:
     """
     Soft-delete a task by archiving it.
-
-    The row is not removed. It is marked archived and stamped with
-    archived_at. Recoverable via POST /restore or /unarchive.
     """
-    task = await _get_owned_task(session, task_id, PLACEHOLDER_USER_ID)
+    task = await _get_owned_task(session, task_id, user_id)
 
     if task.status != "archived":
         task.status = "archived"
@@ -210,11 +220,15 @@ async def archive_task(task_id: UUID, session: SessionDep) -> None:
 
 
 @router.post("/{task_id}/unarchive", response_model=TaskRead)
-async def unarchive_task(task_id: UUID, session: SessionDep) -> TaskRead:
+async def unarchive_task(
+    task_id: UUID,
+    session: SessionDep,
+    user_id: UserDep,
+) -> TaskRead:
     """
     Restore an archived task to idle.
     """
-    task = await _get_owned_task(session, task_id, PLACEHOLDER_USER_ID)
+    task = await _get_owned_task(session, task_id, user_id)
 
     if task.status != "idle":
         task.status = "idle"
