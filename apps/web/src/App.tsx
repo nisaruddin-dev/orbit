@@ -1,6 +1,10 @@
 /**
  * Orbit — Root application component.
  *
+ * Gates on auth: if not signed in, show the sign-in screen over
+ * a faint version of the scene. If signed in, show the full
+ * interactive scene.
+ *
  * Reads tasks from the task store. Mounts the EditPanelTracker
  * inside the Canvas (for 3D projection) and the EditPanel outside
  * the Canvas (for HTML rendering).
@@ -9,6 +13,8 @@
 import { useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 
+import { useAuth } from '@/auth/useAuth';
+import { SignInScreen } from '@/auth/SignInScreen';
 import { ChoreographyTicker } from '@/choreography';
 import { CameraRig, useCameraKeyboard } from '@/camera';
 import { CAMERA } from '@/design';
@@ -36,6 +42,8 @@ import { UndoGhost } from '@/ui/UndoGhost';
 import './App.css';
 
 export default function App() {
+  const { session, loading } = useAuth();
+
   useCameraKeyboard();
   useKeyboardNavigation();
 
@@ -107,6 +115,8 @@ export default function App() {
         <ChoreographyTicker />
         <EditPanelTracker />
       </Canvas>
+
+      {!loading && !session && <SignInScreen />}
 
       <EditPanel />
       <UndoGhost />

@@ -256,3 +256,132 @@
   transition: transform 100ms linear;
   opacity: 0.6;
 }
+/* ---------- Sign-in screen ---------- */
+
+.sign-in-root {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(14, 15, 22, 0.55);
+  z-index: 2000;
+  pointer-events: auto;
+  animation: sign-in-fade-in 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes sign-in-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.sign-in-panel {
+  width: 360px;
+  padding: 32px 28px;
+  background: rgba(30, 34, 51, 0.94);
+  border: 1px solid rgba(232, 234, 242, 0.14);
+  border-radius: 14px;
+  box-shadow:
+    0 12px 48px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(232, 234, 242, 0.06);
+  font-family: Inter, system-ui, sans-serif;
+  color: #e8eaf2;
+}
+
+.sign-in-title {
+  margin: 0 0 4px 0;
+  font-size: 1.6rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: #e8eaf2;
+}
+
+.sign-in-subtitle {
+  margin: 0 0 24px 0;
+  font-size: 0.85rem;
+  color: #a2a8bd;
+}
+
+.sign-in-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sign-in-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sign-in-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #a2a8bd;
+  letter-spacing: 0.02em;
+}
+
+.sign-in-input {
+  width: 100%;
+  background: rgba(232, 234, 242, 0.06);
+  border: 1px solid rgba(232, 234, 242, 0.12);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #e8eaf2;
+  font-size: 0.95rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s ease, background 0.2s ease;
+  box-sizing: border-box;
+}
+
+.sign-in-input:focus {
+  border-color: #7bd3ea;
+  background: rgba(232, 234, 242, 0.08);
+}
+
+.sign-in-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sign-in-error {
+  margin: 0;
+  padding: 8px 12px;
+  background: rgba(242, 166, 126, 0.12);
+  border: 1px solid rgba(242, 166, 126, 0.35);
+  border-radius: 8px;
+  color: #f2a67e;
+  font-size: 0.82rem;
+}
+
+.sign-in-button {
+  margin-top: 4px;
+  width: 100%;
+  background: rgba(123, 211, 234, 0.14);
+  border: 1px solid rgba(123, 211, 234, 0.45);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: #7bd3ea;
+  font-size: 0.95rem;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.sign-in-button:hover:not(:disabled) {
+  background: rgba(123, 211, 234, 0.22);
+  border-color: rgba(123, 211, 234, 0.65);
+}
+
+.sign-in-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
