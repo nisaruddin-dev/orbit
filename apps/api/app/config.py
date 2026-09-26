@@ -56,6 +56,24 @@ class Settings(BaseSettings):
         description="Comma-separated list of allowed CORS origins.",
     )
 
+    @field_validator(
+        "database_url",
+        "supabase_url",
+        "supabase_publishable_key",
+        "supabase_secret_key",
+    )
+    @classmethod
+    def reject_placeholders(cls, value: str) -> str:
+        """Reject any value that still contains a REPLACE_ME placeholder."""
+        if "REPLACE_ME" in value:
+            msg = (
+                "Environment variable still contains a REPLACE_ME "
+                "placeholder. Fill in the real value in .env before "
+                "starting the app."
+            )
+            raise ValueError(msg)
+        return value
+
     @field_validator("database_url")
     @classmethod
     def validate_database_url(cls, value: str) -> str:
