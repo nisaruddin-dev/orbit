@@ -31,6 +31,7 @@ import { useInteractionStore } from '@/state/interaction';
 import { subscribe, play } from '@/choreography';
 import type { TaskRing } from '@orbit/shared';
 import { usePreferenceStore } from '@/state/preferenceStore';
+import { useCompleteTask, useUpdateTask } from '@/data/mutations';
 
 type TaskPriority = 0 | 1 | 2 | 3;
 
@@ -90,6 +91,8 @@ export function TaskNode({
   const setNodeSettledPosition = useInteractionStore(
     (s) => s.setNodeSettledPosition,
   );
+  const updateTaskMutation = useUpdateTask();
+  const completeTaskMutation = useCompleteTask();
 
   const settledPosition = useInteractionStore(
     (s) => s.nodeSettledPositions[id] ?? position,
@@ -171,6 +174,10 @@ export function TaskNode({
     void handle.promise.then(() => {
       // Record the completion for the 5-second undo ghost.
       setLastCompleted({ taskId: id, priorPosition });
+      // Tell the server the task is completed. The node is
+      // already gone visually; if the server rejects, the undo
+      // ghost is the recovery path.
+      completeTaskMutation.mutate(id);
       clearCompletingNode();
     });
     // We intentionally do not depend on settledPosition; the
@@ -218,6 +225,16 @@ export function TaskNode({
 
       if (decision === 'commit' && lastPos) {
         setNodeSettledPosition(id, lastPos);
+        // Convert world position back to orbit coordinates and
+        // persist them. atan2(z, x) gives the angle; the radius
+        // is the XZ distance.
+        const [x, , z] = lastPos;
+        const radius = Math.sqrt(x * x + z * z);
+        const angle = Math.atan2(z, x);
+        updateTaskMutation.mutate({
+          id,
+          patch: { orbit_angle: angle, orbit_radius: radius },
+        });
       } else if (decision === 'spring-back' && lastPos) {
         springTargetRef.current = settledPosition;
         springRef.current = {
