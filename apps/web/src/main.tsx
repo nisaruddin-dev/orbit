@@ -39,11 +39,10 @@ const queryClient = new QueryClient({
       // Do not retry on 4xx errors (auth, not found, validation).
       // Retry on network errors, up to twice.
       retry: (failureCount, error) => {
-        // If the error carries a status, only retry on 5xx.
-        const status =
-          typeof error === 'object' && error !== null && 'status' in error
-            ? (error as { status?: number }).status
-            : undefined;
+        // Only retry on network failures or 5xx responses. Do not
+        // retry 4xx, which indicate a problem the client cannot
+        // resolve by trying again.
+        const status = (error as { status?: unknown }).status;
         if (typeof status === 'number' && status >= 400 && status < 500) {
           return false;
         }
