@@ -61,10 +61,7 @@ class Settings(BaseSettings):
     def validate_database_url(cls, value: str) -> str:
         """Ensure the URL uses the asyncpg driver."""
         if not value.startswith("postgresql+asyncpg://"):
-            msg = (
-                "DATABASE_URL must use the asyncpg driver "
-                "(postgresql+asyncpg://...)."
-            )
+            msg = "DATABASE_URL must use the asyncpg driver (postgresql+asyncpg://...)."
             raise ValueError(msg)
         return value
 
@@ -73,9 +70,7 @@ class Settings(BaseSettings):
     def validate_supabase_url(cls, value: str) -> str:
         """Ensure the URL looks like a Supabase project URL."""
         if not value.startswith("https://") or ".supabase.co" not in value:
-            msg = (
-                "SUPABASE_URL must look like https://xxx.supabase.co."
-            )
+            msg = "SUPABASE_URL must look like https://xxx.supabase.co."
             raise ValueError(msg)
         return value.rstrip("/")
 
