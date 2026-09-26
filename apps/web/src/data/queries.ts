@@ -66,8 +66,10 @@ export function useTasks() {
     // Refetch when the window regains focus. A tab switch
     // should show the latest tasks.
     refetchOnWindowFocus: true,
-    // Realtime (8b-7) will push changes; polling is not needed.
-    refetchInterval: false,
+    // Poll every 5 seconds as a fallback in case Realtime is
+    // not working. When Realtime connects, this is redundant,
+    // but harmless.
+    refetchInterval: 5000,
   });
 
   // When the query succeeds, update the store and the cache.
