@@ -20,7 +20,10 @@
 
 import { EASINGS } from './easings';
 import { ZONE_CHOREOGRAPHIES } from './zone';
-import { COMPLETION_CHOREOGRAPHY } from './completion';
+import {
+  COMPLETION_CHOREOGRAPHY,
+  COMPLETION_REDUCED_CHOREOGRAPHY,
+} from './completion';
 import type {
   Choreography,
   ChoreographyHandle,
@@ -46,6 +49,7 @@ for (const c of ZONE_CHOREOGRAPHIES) {
   register(c);
 }
 register(COMPLETION_CHOREOGRAPHY);
+register(COMPLETION_REDUCED_CHOREOGRAPHY);
 
 /** A scoped listener entry. */
 interface ListenerEntry {

@@ -34,6 +34,7 @@ export const COMPLETION_CHOREOGRAPHY: Choreography = {
   // number without walking the sequence.
   duration: 4.0,
   interruptible: true,
+  reducedMotionVariant: 'completion.reduced',
   tracks: [],
   sequence: [
     {
@@ -193,6 +194,72 @@ export const COMPLETION_CHOREOGRAPHY: Choreography = {
           keyframes: [
             { t: 0.0, value: 0.7, easing: 'linear' },
             { t: 1.0, value: 0.0, easing: 'dissolve' },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
+/**
+ * The reduced-motion variant of the completion choreography.
+ * A short fade. No particles, no camera dolly. The task is still
+ * released; only the motion is removed.
+ *
+ * Source: UI/UX §90, PRD F-1101.
+ */
+export const COMPLETION_REDUCED_CHOREOGRAPHY: Choreography = {
+  name: 'completion.reduced',
+  duration: 1.0,
+  interruptible: true,
+  tracks: [],
+  sequence: [
+    {
+      name: 'reach',
+      duration: 0.2,
+      tracks: [
+        {
+          target: 'node',
+          property: 'shellOpacity',
+          keyframes: [
+            { t: 0.0, value: 0.15, easing: 'linear' },
+            { t: 1.0, value: 0.5, easing: 'settle' },
+          ],
+        },
+      ],
+    },
+    {
+      name: 'dissolve',
+      duration: 0.6,
+      tracks: [
+        {
+          target: 'node',
+          property: 'scale',
+          keyframes: [
+            { t: 0.0, value: 1.0, easing: 'linear' },
+            { t: 1.0, value: 0.0, easing: 'linear' },
+          ],
+        },
+        {
+          target: 'node',
+          property: 'emissive',
+          keyframes: [
+            { t: 0.0, value: 0.3, easing: 'linear' },
+            { t: 1.0, value: 0.5, easing: 'linear' },
+          ],
+        },
+      ],
+    },
+    {
+      name: 'settle',
+      duration: 0.2,
+      tracks: [
+        {
+          target: 'zone',
+          property: 'opacity',
+          keyframes: [
+            { t: 0.0, value: 0.7, easing: 'linear' },
+            { t: 1.0, value: 0.0, easing: 'linear' },
           ],
         },
       ],

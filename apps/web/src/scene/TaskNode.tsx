@@ -30,6 +30,7 @@ import { dispatchIntent } from '@/input';
 import { useInteractionStore } from '@/state/interaction';
 import { subscribe, play } from '@/choreography';
 import type { TaskRing } from '@orbit/shared';
+import { usePreferenceStore } from '@/state/preferenceStore';
 
 type TaskPriority = 0 | 1 | 2 | 3;
 
@@ -81,6 +82,7 @@ export function TaskNode({
     (s) => s.clearCompletingNode,
   );
   const setLastCompleted = useInteractionStore((s) => s.setLastCompleted);
+  const reducedMotion = usePreferenceStore((s) => s.prefersReducedMotion);
   const clearReleaseDecision = useInteractionStore(
     (s) => s.clearReleaseDecision,
   );
@@ -161,7 +163,10 @@ export function TaskNode({
       return;
     }
 
-    const handle = play('completion');
+    const choreographyName = reducedMotion
+      ? 'completion.reduced'
+      : 'completion';
+    const handle = play(choreographyName);
     const priorPosition = settledPosition;
     void handle.promise.then(() => {
       // Record the completion for the 5-second undo ghost.
@@ -171,7 +176,7 @@ export function TaskNode({
     // We intentionally do not depend on settledPosition; the
     // prior position is captured at the moment completion begins.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCompleting, clearCompletingNode, id]);
+  }, [isCompleting, clearCompletingNode, id, reducedMotion]);
 
   // Ring change animation.
   useEffect(() => {

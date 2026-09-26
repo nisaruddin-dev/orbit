@@ -21,6 +21,7 @@ import type { InstancedMesh } from 'three';
 import { ACCENT } from '@/design';
 import { subscribe } from '@/choreography';
 import { useInteractionStore } from '@/state/interaction';
+import { usePreferenceStore } from '@/state/preferenceStore';
 
 const PARTICLE_COUNT = 240;
 const MAX_DRIFT = 2.4;
@@ -35,6 +36,7 @@ export function DissolveParticles() {
     (s) => s.nodeSettledPositions,
   );
   const nodePositions = useInteractionStore((s) => s.nodePositions);
+  const reducedMotion = usePreferenceStore((s) => s.prefersReducedMotion);
 
   const particleColor = useMemo(() => new Color(ACCENT.done), []);
 
@@ -121,7 +123,7 @@ export function DissolveParticles() {
 
     const origin = originRef.current;
 
-    if (!origin || !completingNodeId) {
+    if (!origin || !completingNodeId || reducedMotion) {
       if (material.opacity !== 0) material.opacity = 0;
       if (mesh.visible) mesh.visible = false;
       return;
