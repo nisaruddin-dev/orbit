@@ -28,8 +28,11 @@
 
 import { useEffect } from 'react';
 
+import { useCreateTask } from '@/data/mutations';
+import { findPlacementAngle, RING_RADIUS } from '@/lib/placement';
 import { useCameraStore } from '@/state/camera';
 import { useInteractionStore } from '@/state/interaction';
+import { useTaskStore } from '@/state/tasks';
 
 import { dispatchIntent } from './useIntent';
 
@@ -56,6 +59,7 @@ export function useKeyboardNavigation(): void {
   const deselectNode = useInteractionStore((s) => s.deselectNode);
   const selectedNodeId = useInteractionStore((s) => s.selectedNodeId);
   const setCameraState = useCameraStore((s) => s.setState);
+  const createTask = useCreateTask();
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -63,6 +67,21 @@ export function useKeyboardNavigation(): void {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
 
       switch (e.key) {
+        case 'n':
+        case 'N': {
+          e.preventDefault();
+          const tasks = useTaskStore.getState().tasks;
+          const angle = findPlacementAngle(tasks, 'today');
+          const radius = RING_RADIUS.today;
+          createTask.mutate({
+            title: 'New task',
+            ring: 'today',
+            priority: 1,
+            orbit_angle: angle,
+            orbit_radius: radius,
+          });
+          break;
+        }
         case 'j':
         case 'J':
           e.preventDefault();
@@ -124,5 +143,6 @@ export function useKeyboardNavigation(): void {
     deselectNode,
     selectedNodeId,
     setCameraState,
+    createTask,
   ]);
 }

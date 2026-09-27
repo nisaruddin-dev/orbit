@@ -20,8 +20,10 @@ import type { Task } from '@orbit/shared';
 import {
   archiveTask as apiArchiveTask,
   completeTask as apiCompleteTask,
+  createTask as apiCreateTask,
   getTask as apiGetTask,
   updateTask as apiUpdateTask,
+  type TaskCreate,
   type TaskUpdate,
 } from './api';
 import { enqueue } from './offlineQueue';
@@ -114,7 +116,6 @@ export function useUpdateTask() {
     },
   });
 }
-
 /** Snapshot for rollback of the complete mutation. */
 interface CompleteTaskContext {
   previous: Task[];
@@ -221,6 +222,69 @@ export function useArchiveTask() {
     onSuccess: (serverTask) => {
       const current = useTaskStore.getState().tasks;
       setTasks(replaceTask(current, serverTask));
+      void queryClient.invalidateQueries({ queryKey: tasksQueryKey });
+    },
+  });
+}
+
+/** Snapshot for rollback of the create mutation. */
+interface CreateTaskContext {
+  previous: Task[];
+}
+
+/**
+ * Create a new task. The task appears immediately in the store
+ * with a temporary ID. When the server responds, the temporary
+ * task is replaced by the canonical one.
+ *
+ * If the network fails, the whole optimistic task is removed
+ * and the user sees nothing was created. (A future revision
+ * could queue creation offline; not in V1.)
+ */
+export function useCreateTask() {
+  const queryClient = useQueryClient();
+  const setTasks = useTaskStore((s) => s.setTasks);
+
+  return useMutation<Task, Error, TaskCreate, CreateTaskContext>({
+    mutationFn: (payload) => apiCreateTask(payload),
+
+    onMutate: (payload) => {
+      const previous = useTaskStore.getState().tasks;
+      const now = new Date().toISOString();
+      const optimistic: Task = {
+        id: `optimistic-${String(Date.now())}`,
+        userId: 'pending',
+        title: payload.title,
+        notes: payload.notes ?? '',
+        ring: payload.ring,
+        priority: payload.priority ?? 1,
+        status: 'idle',
+        dueAt: payload.due_at ?? null,
+        recurrence: payload.recurrence ?? null,
+        createdAt: now,
+        updatedAt: now,
+        completedAt: null,
+        archivedAt: null,
+        orbitAngle: payload.orbit_angle ?? null,
+        orbitRadius: payload.orbit_radius ?? null,
+      };
+      setTasks([...previous, optimistic]);
+      return { previous };
+    },
+
+    onError: (_error, _variables, context) => {
+      if (context) {
+        setTasks(context.previous);
+      }
+    },
+
+    onSuccess: (serverTask) => {
+      // Replace the optimistic task with the canonical one.
+      const current = useTaskStore.getState().tasks;
+      const withoutOptimistic = current.filter(
+        (t) => !t.id.startsWith('optimistic-'),
+      );
+      setTasks(replaceTask(withoutOptimistic, serverTask));
       void queryClient.invalidateQueries({ queryKey: tasksQueryKey });
     },
   });
