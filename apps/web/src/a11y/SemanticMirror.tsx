@@ -19,12 +19,21 @@
 import { dispatchIntent } from '@/input';
 import { useTaskStore } from '@/state/tasks';
 
-export function SemanticMirror() {
+interface SemanticMirrorProps {
+  /**
+   * Force the mirror to be visible, overriding the default
+   * visually-hidden state. Used when WebGL is unavailable and
+   * the mirror IS the primary interface.
+   */
+  visible?: boolean;
+}
+
+export function SemanticMirror({ visible = false }: SemanticMirrorProps) {
   const tasks = useTaskStore((s) => s.tasks);
 
   return (
     <section
-      className="semantic-mirror"
+      className={visible ? 'semantic-mirror semantic-mirror--visible' : 'semantic-mirror'}
       aria-label="Orbit tasks"
       aria-live="polite"
     >

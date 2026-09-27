@@ -5,15 +5,14 @@
  * a faint version of the scene. If signed in, show the full
  * interactive scene.
  *
+ * Renders the Canvas only if WebGL is available. If it is not,
+ * shows the semantic mirror as the primary interface instead.
+ *
  * The Canvas and the UI overlays are wrapped in separate error
  * boundaries. A failure in one does not take down the other.
  *
- * The SemanticMirror is mounted after the UI boundary. It is
- * visually hidden but exposed to screen readers and keyboard
- * focus. It reads from the same store the 3D scene reads from.
- *
- * Source: System Architecture §67 (Error Boundaries),
- * §40–41 (Accessibility), TRD §59 (Semantic Mirror).
+ * Source: System Architecture §50 (WebGL Failure),
+ * §67 (Error Boundaries), TRD §93.
  */
 
 import { useEffect } from 'react';
@@ -22,6 +21,7 @@ import { Canvas } from '@react-three/fiber';
 import { useAuth } from '@/auth/useAuth';
 import { SignInScreen } from '@/auth/SignInScreen';
 import { SemanticMirror } from '@/a11y/SemanticMirror';
+import { useWebGLSupport } from '@/a11y/useWebGLSupport';
 import { ChoreographyTicker } from '@/choreography';
 import { CameraRig, useCameraKeyboard } from '@/camera';
 import { CAMERA } from '@/design';
@@ -56,6 +56,7 @@ import './App.css';
 
 export default function App() {
   const { session, loading } = useAuth();
+  const webgl = useWebGLSupport();
 
   useCameraKeyboard();
   useKeyboardNavigation();
@@ -67,7 +68,6 @@ export default function App() {
     (s) => s.pruneNodeSettledPositions,
   );
 
-  // Fetch tasks and hydrate from cache.
   useTasks();
 
   useEffect(() => {
@@ -86,6 +86,21 @@ export default function App() {
     pruneNodeSettledPositions(ids);
   }, [tasks, setNodeList, pruneNodeSettledPositions]);
 
+  // If WebGL is unsupported, the mirror becomes the primary
+  // interface. The scene is not rendered.
+  if (webgl === 'unsupported') {
+    return (
+      <ErrorBoundary label="app" fallback={<AppFallback />}>
+        <div className="app app--fallback">
+          <SemanticMirror visible />
+          {!loading && !session && <SignInScreen />}
+        </div>
+      </ErrorBoundary>
+    );
+  }
+
+  // WebGL supported. Render the full scene with the mirror as
+  // the accessible counterpart.
   return (
     <ErrorBoundary label="app" fallback={<AppFallback />}>
       <div className="app">

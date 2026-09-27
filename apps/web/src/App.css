@@ -544,6 +544,37 @@
   z-index: 9999;
 }
 
+/*
+ * When the mirror is the primary interface (WebGL unavailable),
+ * force it visible regardless of focus.
+ */
+.semantic-mirror--visible {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: auto;
+  height: auto;
+  padding: 32px;
+  margin: 0;
+  overflow: auto;
+  clip: auto;
+  white-space: normal;
+  background: #0e0f16;
+  font-family: Inter, system-ui, sans-serif;
+  color: #e8eaf2;
+  z-index: 100;
+}
+
+.semantic-mirror--visible .semantic-mirror__task {
+  max-width: 640px;
+}
+
+.app--fallback {
+  background: #0e0f16;
+}
+
 .semantic-mirror__task {
   margin-bottom: 24px;
   padding-bottom: 20px;
