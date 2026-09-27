@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/immutability */
 /**
  * @module scene/Aurora
  *

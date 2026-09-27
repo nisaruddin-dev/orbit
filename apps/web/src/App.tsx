@@ -66,9 +66,10 @@ export default function App() {
   useTasks();
 
   useEffect(() => {
-    const ids = tasks.map((t) => t.id);
+    const visible = tasks.filter((t) => t.status !== 'archived');
+    const ids = visible.map((t) => t.id);
     const positions: Record<string, [number, number, number]> = {};
-    for (const task of tasks) {
+    for (const task of visible) {
       if (task.orbitAngle === null || task.orbitRadius === null) continue;
       positions[task.id] = [
         Math.cos(task.orbitAngle) * task.orbitRadius,
@@ -108,6 +109,10 @@ export default function App() {
             <Rings />
 
             {tasks.map((task) => {
+              // Archived tasks are soft-deleted. They stay in the
+              // store and the database, but they do not appear in
+              // the active world.
+              if (task.status === 'archived') return null;
               if (task.orbitAngle === null || task.orbitRadius === null)
                 return null;
               const x = Math.cos(task.orbitAngle) * task.orbitRadius;
