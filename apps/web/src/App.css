@@ -503,3 +503,86 @@
   background: rgba(123, 211, 234, 0.22);
   border-color: rgba(123, 211, 234, 0.65);
 }
+/* ---------- Semantic mirror ---------- */
+
+/*
+ * Visually hidden, but accessible to screen readers and
+ * focusable for keyboard users. The clip path is the standard
+ * pattern from a11y references.
+ */
+.semantic-mirror {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* When a user focuses anything inside the mirror, reveal it. */
+.semantic-mirror:focus-within {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  width: auto;
+  height: auto;
+  padding: 24px;
+  margin: 0;
+  overflow: auto;
+  clip: auto;
+  white-space: normal;
+  background: rgba(14, 15, 22, 0.98);
+  border: 1px solid rgba(232, 234, 242, 0.14);
+  border-radius: 12px;
+  font-family: Inter, system-ui, sans-serif;
+  color: #e8eaf2;
+  z-index: 9999;
+}
+
+.semantic-mirror__task {
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(232, 234, 242, 0.08);
+}
+
+.semantic-mirror__task h2 {
+  margin: 0 0 6px 0;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.semantic-mirror__task p {
+  margin: 0 0 8px 0;
+  font-size: 0.85rem;
+  color: #a2a8bd;
+}
+
+.semantic-mirror__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.semantic-mirror__actions button {
+  background: rgba(123, 211, 234, 0.12);
+  border: 1px solid rgba(123, 211, 234, 0.4);
+  border-radius: 6px;
+  padding: 6px 12px;
+  color: #7bd3ea;
+  font-size: 0.8rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.semantic-mirror__actions button:hover:not(:disabled) {
+  background: rgba(123, 211, 234, 0.2);
+}
+
+.semantic-mirror__actions button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

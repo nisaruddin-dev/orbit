@@ -8,8 +8,12 @@
  * The Canvas and the UI overlays are wrapped in separate error
  * boundaries. A failure in one does not take down the other.
  *
+ * The SemanticMirror is mounted after the UI boundary. It is
+ * visually hidden but exposed to screen readers and keyboard
+ * focus. It reads from the same store the 3D scene reads from.
+ *
  * Source: System Architecture §67 (Error Boundaries),
- * §91 (Failure Isolation).
+ * §40–41 (Accessibility), TRD §59 (Semantic Mirror).
  */
 
 import { useEffect } from 'react';
@@ -17,6 +21,7 @@ import { Canvas } from '@react-three/fiber';
 
 import { useAuth } from '@/auth/useAuth';
 import { SignInScreen } from '@/auth/SignInScreen';
+import { SemanticMirror } from '@/a11y/SemanticMirror';
 import { ChoreographyTicker } from '@/choreography';
 import { CameraRig, useCameraKeyboard } from '@/camera';
 import { CAMERA } from '@/design';
@@ -107,11 +112,9 @@ export default function App() {
             <Floor />
             <Core />
             <Rings />
+            <Aurora />
 
             {tasks.map((task) => {
-              // Archived tasks are soft-deleted. They stay in the
-              // store and the database, but they do not appear in
-              // the active world.
               if (task.status === 'archived') return null;
               if (task.orbitAngle === null || task.orbitRadius === null)
                 return null;
@@ -129,7 +132,6 @@ export default function App() {
               );
             })}
 
-	    <Aurora />
             <CompletionZone />
             <ZoneProjection />
             <DissolveParticles />
@@ -149,6 +151,8 @@ export default function App() {
           <UndoGhost />
           <NetworkIndicator />
         </ErrorBoundary>
+
+        <SemanticMirror />
       </div>
     </ErrorBoundary>
   );

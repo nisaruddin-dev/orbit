@@ -1,20 +1,25 @@
 /**
  * @module input/InteractionHandler
  *
- * Listens for interaction intents and updates the interaction,
- * camera, and editing stores. Renders nothing — it's a pure
- * logic component.
+ * Listens for interaction intents and routes them. Renders
+ * nothing — it is a pure logic component.
  *
- * On END_DRAG, reads the current zone state and decides whether
- * the release was inside the zone, near the zone, or never
- * approached. On FOCUS_NODE, reads the node's settled position
- * and moves the camera to it, and opens the edit panel for it.
- * On CANCEL, returns the camera to orbit, clears the focus target,
- * and closes the edit panel.
+ * Routes each intent to the appropriate store action, mutation,
+ * or camera transition. The mutations are optimistic; the store
+ * is updated before the API call and rolled back on failure.
+ *
+ * New in 8d-1:
+ *   - COMPLETE_NODE  → useCompleteTask mutation
+ *   - ARCHIVE_NODE   → useArchiveTask mutation
+ *   - OPEN_EDITOR    → openEditor store action
+ *
+ * Source: System Architecture §30 (Interaction Intents),
+ * §51 (Input Actions).
  */
 
 import { useCallback } from 'react';
 
+import { useArchiveTask, useCompleteTask } from '@/data/mutations';
 import { useInteractionStore } from '@/state/interaction';
 import { useCameraStore } from '@/state/camera';
 import { useEditingStore } from '@/state/editing';
@@ -46,6 +51,9 @@ export function InteractionHandler() {
 
   const openEditor = useEditingStore((s) => s.openEditor);
   const closeEditor = useEditingStore((s) => s.closeEditor);
+
+  const completeTaskMutation = useCompleteTask();
+  const archiveTaskMutation = useArchiveTask();
 
   useDrag();
 
@@ -81,9 +89,6 @@ export function InteractionHandler() {
             useInteractionStore.getState().nodeSettledPositions[
               intent.nodeId
             ];
-          // Only focus when the settled position is a valid
-          // finite array. A NaN or null coordinate would blank
-          // the scene.
           if (
             settled &&
             Number.isFinite(settled[0]) &&
@@ -94,6 +99,18 @@ export function InteractionHandler() {
             setCameraState('focus');
             openEditor(intent.nodeId);
           }
+          break;
+        }
+        case 'OPEN_EDITOR': {
+          openEditor(intent.nodeId);
+          break;
+        }
+        case 'COMPLETE_NODE': {
+          completeTaskMutation.mutate(intent.nodeId);
+          break;
+        }
+        case 'ARCHIVE_NODE': {
+          archiveTaskMutation.mutate(intent.nodeId);
           break;
         }
         case 'CANCEL': {
@@ -118,6 +135,8 @@ export function InteractionHandler() {
       setFocusTarget,
       openEditor,
       closeEditor,
+      completeTaskMutation,
+      archiveTaskMutation,
     ],
   );
 

@@ -4,8 +4,8 @@
  * Global keyboard listeners for node navigation.
  *
  * Shortcuts:
- *   Tab         → next node
- *   Shift+Tab   → previous node
+ *   J           → next node
+ *   K           → previous node
  *   Arrow Up    → nearest node above
  *   Arrow Down  → nearest node below
  *   Arrow Left  → nearest node to the left
@@ -13,7 +13,17 @@
  *   Enter       → focus the selected node
  *   Escape      → deselect
  *
- * Disabled when the user is typing in a text input.
+ * Tab and Shift+Tab are intentionally NOT handled. Tab belongs
+ * to the browser: it moves focus between focusable elements.
+ * Intercepting it breaks the ability to reach the semantic
+ * mirror and any other accessibility surface.
+ *
+ * Node cycling was previously bound to Tab. It is now bound to
+ * J and K, which do not conflict with browser shortcuts or
+ * assistive technology.
+ *
+ * Source: UI/UX §88 (Keyboard System), System Architecture §60
+ * (Keyboard Architecture), PRD F-1102.
  */
 
 import { useEffect } from 'react';
@@ -53,13 +63,16 @@ export function useKeyboardNavigation(): void {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
 
       switch (e.key) {
-        case 'Tab':
+        case 'j':
+        case 'J':
           e.preventDefault();
-          if (e.shiftKey) {
-            selectPrevious();
-          } else {
-            selectNext();
-          }
+          selectNext();
+          break;
+
+        case 'k':
+        case 'K':
+          e.preventDefault();
+          selectPrevious();
           break;
 
         case 'ArrowUp':
@@ -86,8 +99,6 @@ export function useKeyboardNavigation(): void {
           if (selectedNodeId) {
             e.preventDefault();
             dispatchIntent({ type: 'FOCUS_NODE', nodeId: selectedNodeId });
-            // For now, focus means "switch the camera to focus state".
-            // In later sub-steps, this will also open the edit panel.
             setCameraState('focus');
           }
           break;

@@ -18,7 +18,9 @@ import { useTaskStore } from '@/state/tasks';
 import type { Task } from '@orbit/shared';
 
 import {
+  archiveTask as apiArchiveTask,
   completeTask as apiCompleteTask,
+  getTask as apiGetTask,
   updateTask as apiUpdateTask,
   type TaskUpdate,
 } from './api';
@@ -175,4 +177,51 @@ export function useUpdateTaskField() {
       mutation.mutate({ id, patch });
     },
   };
+}
+/** Snapshot for rollback of the archive mutation. */
+interface ArchiveTaskContext {
+  previous: Task[];
+}
+
+/**
+ * Archive a task. Optimistically sets status to 'archived' and
+ * stamps archived_at. The node is filtered out of the scene by
+ * App.tsx when status is 'archived'.
+ */
+export function useArchiveTask() {
+  const queryClient = useQueryClient();
+  const setTasks = useTaskStore((s) => s.setTasks);
+
+  return useMutation<Task, Error, string, ArchiveTaskContext>({
+    mutationFn: async (id) => {
+      // The API's archiveTask returns void. Fetch the task
+      // afterwards so the caller gets the canonical row.
+      await apiArchiveTask(id);
+      return apiGetTask(id);
+    },
+
+    onMutate: (id) => {
+      const previous = useTaskStore.getState().tasks;
+      const now = new Date().toISOString();
+      const next = previous.map((task) =>
+        task.id === id
+          ? { ...task, status: 'archived' as const, archivedAt: now }
+          : task,
+      );
+      setTasks(next);
+      return { previous };
+    },
+
+    onError: (_error, _id, context) => {
+      if (context) {
+        setTasks(context.previous);
+      }
+    },
+
+    onSuccess: (serverTask) => {
+      const current = useTaskStore.getState().tasks;
+      setTasks(replaceTask(current, serverTask));
+      void queryClient.invalidateQueries({ queryKey: tasksQueryKey });
+    },
+  });
 }

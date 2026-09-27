@@ -20,6 +20,8 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 
+import type { Task } from '@orbit/shared';
+
 import { useTaskStore } from '@/state/tasks';
 import { listTasks } from './api';
 import { loadTasksFromCache, saveTasksToCache } from './cache';
@@ -63,9 +65,7 @@ export function useTasks() {
   // changes. Uses `dataUpdatedAt` so the effect fires reliably
   // even when the array identity is preserved across refetches.
   useEffect(() => {
-    const data = queryClient.getQueryData<Awaited<ReturnType<typeof listTasks>>>(
-      tasksQueryKey,
-    );
+    const data = queryClient.getQueryData<Task[]>(tasksQueryKey);
     if (data) {
       setTasks(data);
       void saveTasksToCache(data);
