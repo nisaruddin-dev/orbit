@@ -22,6 +22,7 @@ import {
   updateTask as apiUpdateTask,
   type TaskUpdate,
 } from './api';
+import { enqueue } from './offlineQueue';
 import { tasksQueryKey } from './queries';
 
 /** Variables passed to useUpdateTask. */
@@ -85,7 +86,20 @@ export function useUpdateTask() {
       return { previous };
     },
 
-    onError: (_error, _variables, context) => {
+    onError: (error, variables, context) => {
+      // A network error means the change could not reach the
+      // server. Queue it and keep the optimistic update. Do not
+      // roll back.
+      if (error.name === 'ApiNetworkError') {
+        void enqueue({
+          taskId: variables.id,
+          type: 'update',
+          payload: variables.patch,
+        });
+        return;
+      }
+
+      // Any other error is terminal. Roll back.
       if (context) {
         setTasks(context.previous);
       }
@@ -127,7 +141,16 @@ export function useCompleteTask() {
       return { previous };
     },
 
-    onError: (_error, _id, context) => {
+    onError: (error, id, context) => {
+      if (error.name === 'ApiNetworkError') {
+        void enqueue({
+          taskId: id,
+          type: 'complete',
+          payload: null,
+        });
+        return;
+      }
+
       if (context) {
         setTasks(context.previous);
       }

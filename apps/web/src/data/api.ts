@@ -7,15 +7,21 @@
  * response. Non-2xx responses become ApiError. Network failures
  * become ApiNetworkError. Missing session becomes ApiAuthError.
  *
- * This module does no caching, no retry, no optimistic mutation,
- * and no offline queueing. Those belong to higher layers
- * (TanStack Query, sync.ts) that sit above it.
+ * The client flips the network store on every request:
+ *   - On success (server responded, whatever status): online.
+ *   - On network failure (server did not respond): offline.
+ *
+ * This is how the app knows the backend is reachable. It does
+ * not use navigator.onLine, which only tracks OS connectivity,
+ * not server reachability.
  *
  * Source: TRD §26 (API Design), System Architecture §21
  * (Realtime Architecture — the API remains canonical).
  */
 
 import type { Task } from '@orbit/shared';
+
+import { useNetworkStore } from '@/state/network';
 
 import { supabase } from './supabase';
 import { ApiAuthError, ApiError, ApiNetworkError } from './errors';
@@ -107,8 +113,15 @@ async function request<T>(
   let response: Response;
   try {
     response = await fetch(`${API_URL}/api/v1${path}`, init);
+    // The server answered. Whatever the status, the network is up.
+    useNetworkStore.getState().setOnline(true);
   } catch (cause) {
-    throw new ApiNetworkError('Request failed before reaching the server.', cause);
+    // The request did not reach the server. Mark offline.
+    useNetworkStore.getState().setOnline(false);
+    throw new ApiNetworkError(
+      'Request failed before reaching the server.',
+      cause,
+    );
   }
 
   // 204 No Content — nothing to parse.

@@ -37,8 +37,10 @@ import {
 import { useInteractionStore } from '@/state/interaction';
 import { useTaskStore } from '@/state/tasks';
 import { useTasks } from '@/data/queries';
+import { useSync } from '@/data/sync';
 import { EditPanel, EditPanelTracker } from '@/ui/EditPanel';
 import { UndoGhost } from '@/ui/UndoGhost';
+import { NetworkIndicator } from '@/ui/NetworkIndicator';
 
 import './App.css';
 
@@ -47,6 +49,7 @@ export default function App() {
 
   useCameraKeyboard();
   useKeyboardNavigation();
+  useSync();
 
   const tasks = useTaskStore((s) => s.tasks);
   useTasks();
@@ -126,6 +129,7 @@ export default function App() {
 
       <EditPanel />
       <UndoGhost />
+      <NetworkIndicator />
     </div>
   );
 }
