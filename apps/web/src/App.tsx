@@ -22,6 +22,7 @@ import { CameraRig, useCameraKeyboard } from '@/camera';
 import { CAMERA } from '@/design';
 import { InteractionHandler, useKeyboardNavigation } from '@/input';
 import {
+  Aurora,
   CompletionZone,
   Core,
   DissolveParticles,
@@ -123,6 +124,7 @@ export default function App() {
               );
             })}
 
+	    <Aurora />
             <CompletionZone />
             <ZoneProjection />
             <DissolveParticles />

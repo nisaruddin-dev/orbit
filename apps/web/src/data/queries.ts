@@ -17,13 +17,12 @@
  * §17.3 (Persistent local state), §9 (State Authority Rule).
  */
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 
 import { useTaskStore } from '@/state/tasks';
 import { listTasks } from './api';
 import { loadTasksFromCache, saveTasksToCache } from './cache';
-  // import { useRealtimeTasks } from './realtime';
 
 /**
  * Query key for the tasks list.
@@ -35,17 +34,10 @@ export const tasksQueryKey = ['tasks'] as const;
  * Fetch the task list, using IndexedDB as a fast local mirror.
  */
 export function useTasks() {
+  const queryClient = useQueryClient();
   const setTasks = useTaskStore((s) => s.setTasks);
 
-  // Subscribe to realtime changes. Any insert, update, or delete
-  // on the tasks table invalidates the query, which refetches.
-  // Realtime is not currently working reliably. Polling and
-  // refetch-on-focus handle synchronization. Revisit in 8b-9.
-  // useRealtimeTasks();
-
-  // Hydrate the store from the cache before the query runs.
-  // This happens once on mount. The query then overwrites the
-  // store with fresh data.
+  // Hydrate the store from the cache on mount.
   useEffect(() => {
     let cancelled = false;
     void loadTasksFromCache().then((cached) => {
@@ -62,25 +54,23 @@ export function useTasks() {
   const query = useQuery({
     queryKey: tasksQueryKey,
     queryFn: listTasks,
-    // Keep the previous data while refetching, so the scene
-    // does not flicker empty between reloads.
     placeholderData: (previous) => previous,
-    // Refetch when the window regains focus. A tab switch
-    // should show the latest tasks.
     refetchOnWindowFocus: true,
-    // Poll every 5 seconds as a fallback in case Realtime is
-    // not working. When Realtime connects, this is redundant,
-    // but harmless.
     refetchInterval: 5000,
   });
 
-  // When the query succeeds, update the store and the cache.
+  // Write the query result into the store whenever the data
+  // changes. Uses `dataUpdatedAt` so the effect fires reliably
+  // even when the array identity is preserved across refetches.
   useEffect(() => {
-    if (query.data) {
-      setTasks(query.data);
-      void saveTasksToCache(query.data);
+    const data = queryClient.getQueryData<Awaited<ReturnType<typeof listTasks>>>(
+      tasksQueryKey,
+    );
+    if (data) {
+      setTasks(data);
+      void saveTasksToCache(data);
     }
-  }, [query.data, setTasks]);
+  }, [queryClient, query.dataUpdatedAt, setTasks]);
 
   return query;
 }

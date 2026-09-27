@@ -20,3 +20,5 @@ export { CompletionZone } from './CompletionZone';
 export { ZoneProjection } from './ZoneProjection';
 export { DissolveParticles } from './DissolveParticles';
 export { SettleToast } from './SettleToast';
+export { Aurora } from './Aurora';
+
