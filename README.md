@@ -2,25 +2,23 @@
 
 > A personal, single-user, immersive 3D to-do environment.
 
-**Status:** Archived — completed September 2026. Preserved as a learning artifact and a library of reusable patterns. Not actively maintained. Not recommended for daily use.
+**Status:** Paused — last worked on September 27, 2026. Runs locally. Not deployed. Not currently in daily use.
 
 ---
 
-## What Orbit Was
+## What Orbit Is
 
-Orbit was an attempt to answer a single question: *what if a to-do list was a place you could enter?*
+Orbit is an attempt to answer a single question: *what if a to-do list was a place you could enter?*
 
-Tasks lived as physical objects in a persistent 3D world. They orbited a glowing Core in three concentric rings — Today, This Week, Someday. Completing a task was not a checkbox; it was a physical act of grabbing the task and dragging it into a completion zone, where it dissolved into particles and left a quiet trace in an outer aurora.
+Tasks live as physical objects in a persistent 3D world. They orbit a glowing Core in three concentric rings — Today, This Week, Someday. Completing a task is not a checkbox; it is a physical act of grabbing the task and dragging it into a completion zone, where it dissolves into particles and leaves a quiet trace in an outer aurora.
 
-The design was driven by three feelings — **Arrival**, **Control**, and **Release** — and three laws — **Physicality**, **Chain**, and **Calm**. No red. No badges. No streaks. No guilt mechanics. The app was intended to feel more like a place than a tool.
+The design is driven by three feelings — **Arrival**, **Control**, and **Release** — and three laws — **Physicality**, **Chain**, and **Calm**. No red. No badges. No streaks. No guilt mechanics. The app is intended to feel more like a place than a tool.
 
 ---
 
-## Why It Was Archived
+## Current State
 
-Orbit succeeded technically. It failed experientially.
-
-The working application included:
+The working application includes:
 
 - A full 3D world with atmospheric twilight lighting, fog, and a reflective floor
 - A pulsing Core with three orbital rings at distinct radii
@@ -29,30 +27,36 @@ The working application included:
 - Post-processing: bloom, vignette, film grain
 - A camera state machine with four states (Orbit, Focus, Timeline, Aurora) and Catmull-Rom spline transitions
 - Interaction driven by a unified `InteractionIntent` abstraction
-- Full drag-and-drop with physics-based completion zone
+- Full drag-and-drop with a physics-based completion zone
 - A six-phase completion choreography with particle dissolve and settle toast
 - In-world editing with autosave (title, notes, priority, ring, due date, recurrence)
 - A 5-second undo ghost after completion
-- FastAPI backend with Supabase Postgres, JWT auth, and RLS
-- Local-first sync with optimistic mutations, IndexedDB cache, and offline mutation queue
+- FastAPI backend with Supabase Postgres, JWT auth, and Row-Level Security
+- Local-first sync with optimistic mutations, IndexedDB cache, and an offline mutation queue
 - A semantic HTML mirror for screen readers
 - A WebGL fallback that renders the semantic mirror when 3D is unavailable
 - Error boundaries at the app, scene, and UI levels
 - Reduced-motion variants for all animations
 
-And yet — the app was not pleasant to use daily.
+The application runs locally. It signs in with a real Supabase account, reads and writes to a real PostgreSQL database in Singapore, persists across reloads, and works offline.
 
-A to-do list should be **faster than thinking of the task**. Orbit made users enter a 3D world first. The 3D metaphor was beautiful and slow. The design's core premise was that tasks feel better as objects; the reality was that tasks feel better as a list you can scan in 2 seconds.
+It is not deployed. It is not in daily use. It is currently paused.
 
-This was not a bug. It was the wrong metaphor.
+---
+
+## Why It Is Paused
+
+Orbit was built over five days as a personal project. It reached the point where every core feature was implemented and working. The remaining work — settings, audio, mobile optimization, and polish — is refinement, not core functionality.
+
+The project was paused after the working version was complete. It was not abandoned because it failed. It was paused because it was finished enough to stop, and because the remaining work is refinement that can happen later, if at all.
 
 See [`POST-MORTEM.md`](./POST-MORTEM.md) for the full retrospective.
 
 ---
 
-## What Lives On
+## Reusable Patterns
 
-Several pieces of Orbit are genuinely reusable and worth preserving. These are the artifacts of the project:
+Several pieces of Orbit are genuinely reusable:
 
 | Pattern | Location | What It Does |
 |---|---|---|
@@ -62,22 +66,22 @@ Several pieces of Orbit are genuinely reusable and worth preserving. These are t
 | **Semantic mirror** | `apps/web/src/a11y/SemanticMirror.tsx` | HTML representation of a 3D scene for screen readers. The 3D canvas is `aria-hidden`; every task is mirrored as a real DOM element. |
 | **Offline mutation queue** | `apps/web/src/data/offlineQueue.ts` | IndexedDB-backed queue that stores mutations while offline and flushes them on reconnect. |
 
-These pieces are extracted and available at [link to be added] as reusable tools.
+These patterns are worth reading if you are building similar systems.
 
 ---
 
 ## Architecture
 
-The full architecture is documented in five specification documents. They remain in `docs/` as a record of the design thinking:
+The full architecture is documented in five specification documents in `docs/`:
 
 - [`docs/PRD.md`](./docs/PRD.md) — Product Requirements (vision, scope, anti-principles)
 - [`docs/TRD.md`](./docs/TRD.md) — Technical Requirements (stack, NFRs, milestones)
 - [`docs/UI-UX.md`](./docs/UI-UX.md) — Design System (palette, lighting, motion, twenty design laws)
 - [`docs/SYSTEM-ARCHITECTURE.md`](./docs/SYSTEM-ARCHITECTURE.md) — Blueprint (three planes, ownership, data flow)
-- [`docs/CHOREOGRAPHY.md`](./docs/CHOREOGRAPHY.md) — Animation timelines (placeholder, would have been completed)
+- [`docs/CHOREOGRAPHY.md`](./docs/CHOREOGRAPHY.md) — Animation timelines (placeholder only)
 - [`docs/adr/`](./docs/adr/) — Architectural Decision Records (0001–0006)
 
-The documents are longer than the code. That was the project's first lesson.
+The documents are longer than the code. That is one of the project's lessons.
 
 ---
 
@@ -114,12 +118,12 @@ The documents are longer than the code. That was the project's first lesson.
 
 ## Running Locally
 
-Orbit runs locally in WSL (Ubuntu) on Windows. It is not deployed.
+Orbit runs locally in WSL (Ubuntu) on Windows.
 
 **Prerequisites:**
 - WSL2 with Ubuntu 22.04+
 - Node 20+ (via nvm)
-- pnpm 9+
+- pnpm 12+
 - Python 3.12+ (via uv)
 - A Supabase project (see `docs/` for schema)
 
@@ -136,8 +140,8 @@ Frontend (in a second terminal):
 
 bash
 cd apps/web
-cp .env.example .env.local
-# Edit .env.local with your Supabase URL and publishable key
+cp .env.example .env
+# Edit .env with your Supabase URL and publishable key
 pnpm install
 pnpm dev
 Open http://localhost:5173. Sign in with the email configured in your Supabase project. Press N to create a task. Press O, F, T, A to switch camera states. Press Escape to deselect.
@@ -151,11 +155,14 @@ T	Timeline camera
 A	Aurora camera (completed history)
 J / K	Next / previous task
 Enter	Focus selected task
-Space	Complete selected task
+Space	Complete selected task (planned)
 Escape	Deselect / exit focus
 M	Mute (not implemented)
-What Was Not Built
-The following were planned but deferred, and are now permanently out of scope:
+Known Issues
+See KNOWN-ISSUES.md.
+
+What Is Not Built
+The following were planned but are not implemented, and are out of scope for now:
 
 Settings screen
 
@@ -169,18 +176,18 @@ Full LOD system
 
 Archive browser
 
+UI-level unarchive
+
 Deployment
 
 License
 MIT. See LICENSE.
 
-The code is provided as-is. It was a learning project. It is not audited for production use. It has known issues documented in KNOWN-ISSUES.md.
+The code is provided as-is. It is a learning project, not audited for production use. Known issues are documented in KNOWN-ISSUES.md.
 
 Final Note
-Orbit is not a great to-do app. It is, however, a complete full-stack application that demonstrates a range of engineering patterns — from intent abstraction to choreography engines to offline-first sync — that most personal projects never touch.
+Orbit is not a great to-do app. It is a complete full-stack application that demonstrates a range of engineering patterns — intent abstraction, choreography engines, offline-first sync, semantic accessibility for a 3D scene — that most personal projects never touch.
 
-If you are reading this as a prospective employer or collaborator: the code quality reflects the seriousness of the effort. The five specification documents, the six ADRs, the accessibility layer, and the tests are the parts worth looking at. The app is not the artifact. The rigor is.
-
-If you are reading this as a future version of the author: use this project as a reference, not a template. It's proof that you can finish hard things. The next thing should be smaller, faster, and more honest about its purpose.
+The code quality reflects the seriousness of the effort. The five specification documents, the six ADRs, the accessibility layer, and the tests are the parts worth looking at. The app is not the artifact. The rigor is.
 
 — Nisar Uddin, September 2026
